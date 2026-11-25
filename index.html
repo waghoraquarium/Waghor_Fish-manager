@@ -119,8 +119,20 @@
 
     @media print {
       .no-print { display: none !important; }
-      body { background: #FFFFFF !important; }
-      #memo-print-area { box-shadow: none !important; border: none !important; padding: 0 !important; }
+      body {
+        background: #FFFFFF !important;
+        padding-bottom: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
+      #memo-print-area, #mortality-print-area .print-card {
+        box-shadow: none !important;
+        border-color: #CBD5E1 !important;
+      }
+      #mortality-print-area .print-break-avoid {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
     }
   </style>
 </head>
@@ -170,6 +182,9 @@
         </button>
         <button data-tab="logs" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition">
           <i data-lucide="clipboard-list" class="w-4 h-4"></i> ประวัติรายวัน
+        </button>
+        <button data-tab="mortality" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition">
+          <i data-lucide="bar-chart-3" class="w-4 h-4"></i> สรุปการตาย
         </button>
         <button data-tab="report" class="nav-btn px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition">
           <i data-lucide="file-text" class="w-4 h-4"></i> สรุปเดือน & บันทึกข้อความ
@@ -283,13 +298,24 @@
 
         <!-- Species Selector -->
         <div>
-          <div class="flex items-center justify-between gap-2 mb-1.5">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
             <label for="rec-species-search" class="text-sm font-semibold text-slate-700">ชนิดสัตว์น้ำ <span class="text-rose-500">*</span></label>
-            <span id="species-mode-hint" class="text-xs text-slate-500">แสดงเฉพาะชนิดที่มีอยู่ในตู้</span>
+            <div class="flex items-center gap-2">
+              <span id="species-mode-hint" class="text-xs text-slate-500">แสดงเฉพาะชนิดที่มีอยู่ในตู้</span>
+              <button id="btn-quick-add-species" type="button" class="hidden btn-press px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold inline-flex items-center gap-1">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> เพิ่มชนิดใหม่
+              </button>
+            </div>
           </div>
           <input id="rec-species-search" type="text" placeholder="ค้นหาชื่อปลา เช่น ปลาเทวดา, ปลากะพงขาว, ปลาหมอทะเล..." class="tap-target w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-sky-500" />
           <select id="rec-species" class="tap-target w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"></select>
           <p id="err-species" class="hidden text-xs text-rose-600 mt-1 font-medium"></p>
+          <div id="rec-species-history-strip" class="hidden mt-2 rounded-xl bg-sky-50/80 border border-sky-200 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div id="rec-species-history-text" class="text-slate-700 leading-snug"></div>
+            <button id="btn-rec-open-history" type="button" class="btn-press px-2.5 py-1 rounded-lg bg-white hover:bg-sky-100 text-sky-700 border border-sky-300 font-semibold inline-flex items-center gap-1 shrink-0">
+              <i data-lucide="history" class="w-3.5 h-3.5"></i> ดูบัตรประวัติตู้นี้
+            </button>
+          </div>
         </div>
 
         <!-- Quantity & Category Row -->
@@ -371,7 +397,17 @@
           <div>
             <label for="intake-unit-cost" class="block text-sm font-semibold text-slate-700 mb-1.5">ราคาทุนต่อหน่วย (Snapshot ลงล็อต)</label>
             <input id="intake-unit-cost" type="number" min="0" value="0" class="tap-target w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm tabular-nums focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            <p class="text-xs text-slate-500 mt-1">บริจาค / จัดหา / เพาะเลี้ยง = 0 บาท (ระบบล็อกราคาไว้กับล็อตนี้)</p>
+            <p class="text-xs text-slate-500 mt-1">บริจาค / จัดหา / เพาะเลี้ยง / เคลมประกัน = 0 บาท (ระบบล็อกราคาไว้กับล็อตนี้)</p>
+          </div>
+          <div class="sm:col-span-2 rounded-xl bg-sky-50/70 border border-sky-200 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <label class="inline-flex items-center gap-2.5 text-sm font-semibold text-navy-900 cursor-pointer">
+              <input id="intake-has-warranty" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500" />
+              <span>สัตว์น้ำมีประกันจากร้าน (แบบ A: เข้าสต็อกเลย แต่ตายในประกันไม่คิดมูลค่าซาก)</span>
+            </label>
+            <div id="wrap-warranty-date" class="hidden flex items-center gap-2 shrink-0">
+              <label for="intake-warranty-until" class="text-xs font-semibold text-sky-900 whitespace-nowrap">หมดประกัน:</label>
+              <input id="intake-warranty-until" type="date" class="rounded-lg border border-sky-300 bg-white px-2.5 py-1.5 text-xs font-semibold" />
+            </div>
           </div>
         </div>
 
@@ -379,6 +415,17 @@
         <div>
           <label for="rec-note" class="block text-sm font-semibold text-slate-700 mb-1.5">หมายเหตุ <span class="text-xs font-normal text-slate-400">ไม่บังคับ</span></label>
           <input id="rec-note" type="text" placeholder="ระบุรายละเอียดเพิ่มเติม (ถ้ามี)..." class="tap-target w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+        </div>
+
+        <!-- Item 1: Hybrid FIFO / Manual Lot Picker -->
+        <div id="wrap-lot-picker" class="hidden rounded-xl bg-amber-50/60 border border-amber-200 p-3.5 space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-1">
+            <label for="rec-lot-select" class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+              <i data-lucide="layers" class="w-4 h-4 text-amber-700"></i> เลือกล็อตที่จะตัดสต็อก (ค่าเริ่มต้น: FIFO เก่าสุดก่อน)
+            </label>
+            <span id="lot-picker-count" class="text-[11px] font-semibold text-amber-800"></span>
+          </div>
+          <select id="rec-lot-select" class="tap-target w-full rounded-xl border border-amber-300 px-3 py-2 text-xs sm:text-sm font-medium bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"></select>
         </div>
 
         <!-- Live FIFO Preview Box -->
@@ -427,10 +474,18 @@
             <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
             <input id="inv-search" type="text" placeholder="ค้นหารหัสตู้หรือชื่อชนิดสัตว์น้ำ..." class="tap-target w-full rounded-xl border border-slate-300 pl-10 pr-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
           </div>
-          <div class="flex items-center gap-1.5">
+          <div class="flex flex-wrap items-center gap-1.5">
+            <select id="inv-month-select" class="tap-target rounded-xl border border-slate-300 px-3 py-2 text-xs font-bold bg-white text-navy-900" aria-label="เลือกเดือนดูสต็อกและซาก">
+              <option value="2026-11">เดือน พ.ย. 69 (ปัจจุบัน)</option>
+              <option value="2026-10">เดือน ต.ค. 69</option>
+              <option value="ALL">ทุกเดือน (สะสม)</option>
+            </select>
             <button type="button" data-invfilter="ALL" class="invfilter-btn tap-target px-3 py-2 rounded-xl text-xs font-semibold bg-navy-900 text-white">ทั้งหมด (45)</button>
             <button type="button" data-invfilter="น้ำจืด" class="invfilter-btn tap-target px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600">น้ำจืด (13)</button>
             <button type="button" data-invfilter="น้ำเค็ม" class="invfilter-btn tap-target px-3 py-2 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600">น้ำเค็ม (32)</button>
+            <button type="button" id="btn-open-stockcard" class="tap-target btn-press px-3 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white inline-flex items-center gap-1.5">
+              <i data-lucide="history" class="w-3.5 h-3.5"></i> บัตรประวัติสัตว์น้ำ
+            </button>
           </div>
         </div>
       </div>
@@ -456,7 +511,122 @@
       <div id="logs-container" class="space-y-2"></div>
     </section>
 
-    <!-- TAB 5: MONTHLY REPORT & GOVERNMENT MEMO (สรุปเดือน & บันทึกข้อความ) -->
+    <!-- TAB 5: MONTHLY MORTALITY SUMMARY (สรุปการตายประจำเดือน) -->
+    <section id="tab-mortality" class="tab-panel hidden space-y-4">
+      <!-- Controls -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3 no-print">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2.5">
+            <label for="mort-month-select" class="text-sm font-semibold text-slate-700">เลือกเดือน:</label>
+            <select id="mort-month-select" class="tap-target rounded-xl border border-slate-300 px-3.5 py-2 text-sm font-semibold bg-white"></select>
+            <div class="flex items-center gap-1">
+              <button type="button" data-mortfilter="ALL" class="mortfilter-btn tap-target px-3 py-1.5 rounded-xl text-xs font-semibold bg-navy-900 text-white">ทั้งหมด</button>
+              <button type="button" data-mortfilter="น้ำจืด" class="mortfilter-btn tap-target px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600">น้ำจืด</button>
+              <button type="button" data-mortfilter="น้ำเค็ม" class="mortfilter-btn tap-target px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600">น้ำเค็ม</button>
+            </div>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="btn-copy-mort-table" type="button" class="tap-target btn-press px-3.5 py-2 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition">
+              <i data-lucide="copy" class="w-4 h-4"></i> คัดลอกตาราง
+            </button>
+            <button id="btn-export-mort-csv" type="button" class="tap-target btn-press px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> ส่งออก CSV
+            </button>
+            <button id="btn-print-mort" type="button" class="tap-target btn-press px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition">
+              <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์สรุปการตาย
+            </button>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          <div class="relative sm:col-span-2">
+            <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
+            <input id="mort-search" type="text" placeholder="ค้นหาชื่อชนิดปลา หรือรหัสตู้ที่ตาย เช่น C1, BIGTANK..." class="tap-target w-full rounded-xl border border-slate-300 pl-10 pr-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+          </div>
+          <select id="mort-sort" class="tap-target rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-medium">
+            <option value="qty_desc">เรียง: ตายมากสุดก่อน</option>
+            <option value="value_desc">เรียง: มูลค่าสูงสุดก่อน</option>
+            <option value="name_asc">เรียง: ตามชื่อชนิด (ก-ฮ)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Printable Mortality Summary Report -->
+      <div id="mortality-print-area" class="space-y-4">
+        <!-- Print & Screen Header -->
+        <div class="card-surface print-card rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 class="text-base sm:text-lg font-bold text-navy-900">
+              สรุปรายชื่อสัตว์น้ำที่ตาย ประจำเดือน <span id="mort-period-title" class="text-sky-700"></span>
+            </h2>
+            <p class="text-xs text-slate-500 mt-0.5">
+              กลุ่มพิพิธภัณฑ์สัตว์น้ำ อุทยานวิทยาศาสตร์พระจอมเกล้า ณ หว้ากอ • ประเภท: <span id="mort-filter-subtitle" class="font-semibold text-slate-700">ทั้งหมด</span>
+            </p>
+          </div>
+          <span id="mort-tank-count-pill" class="px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 tabular-nums">พบ 0 ตู้</span>
+        </div>
+
+        <!-- 3-Card Summary Strip -->
+        <div class="grid grid-cols-3 gap-2.5 sm:gap-4 print-break-avoid">
+          <div class="card-surface print-card rounded-2xl p-3 sm:p-4 border-l-4 border-l-navy-900">
+            <div class="text-xs text-slate-600 font-semibold">ชนิดที่ตาย</div>
+            <div id="mort-kpi-species" class="text-lg sm:text-2xl font-bold text-navy-900 mt-1 tabular-nums">0 ชนิด</div>
+            <div id="mort-kpi-species-sub" class="text-[11px] sm:text-xs text-slate-500 mt-0.5 tabular-nums">น้ำจืด 0 • น้ำเค็ม 0</div>
+          </div>
+          <div class="card-surface print-card rounded-2xl p-3 sm:p-4 border-l-4 border-l-rose-600">
+            <div class="text-xs text-slate-600 font-semibold">จำนวนที่ตายรวม</div>
+            <div id="mort-kpi-qty" class="text-lg sm:text-2xl font-bold text-rose-700 mt-1 tabular-nums">0 ตัว</div>
+            <div id="mort-kpi-qty-sub" class="text-[11px] sm:text-xs text-slate-500 mt-0.5 tabular-nums">เก็บซาก 0 • ไม่เก็บ 0</div>
+          </div>
+          <div class="card-surface print-card rounded-2xl p-3 sm:p-4 border-l-4 border-l-amber-500">
+            <div class="text-xs text-slate-600 font-semibold">มูลค่าความเสียหายรวม</div>
+            <div id="mort-kpi-value" class="text-lg sm:text-2xl font-bold text-amber-700 mt-1 tabular-nums">0 บาท</div>
+            <div id="mort-kpi-value-sub" class="text-[11px] sm:text-xs text-slate-500 mt-0.5 tabular-nums">ตามต้นทุนล็อต FIFO</div>
+          </div>
+        </div>
+
+        <!-- Main Mortality Summary Table -->
+        <div class="card-surface print-card rounded-2xl p-4 sm:p-5 overflow-x-auto">
+          <table class="w-full text-xs sm:text-sm border-collapse min-w-[540px]">
+            <thead>
+              <tr class="bg-slate-100 text-slate-700 border-y border-slate-200">
+                <th class="py-2.5 px-2 text-center font-bold w-12">ที่</th>
+                <th class="py-2.5 px-2 text-left font-bold">ชื่อชนิดสัตว์น้ำ</th>
+                <th class="py-2.5 px-2 text-left font-bold">ตู้ที่ตาย</th>
+                <th class="py-2.5 px-2 text-right font-bold text-rose-700 w-28">จำนวน (ตัว)</th>
+                <th class="py-2.5 px-2 text-right font-bold w-32">มูลค่า (บาท)</th>
+              </tr>
+            </thead>
+            <tbody id="mort-table-body" class="divide-y divide-slate-100 tabular-nums"></tbody>
+            <tfoot id="mort-table-foot" class="border-t-2 border-slate-300 bg-sky-50/70 font-bold text-navy-900 tabular-nums"></tfoot>
+          </table>
+          <div id="mort-empty-state" class="hidden py-8 text-center space-y-2.5">
+            <p class="text-sm font-semibold text-slate-600">ไม่มีรายการสัตว์น้ำตายในเดือน/เงื่อนไขที่เลือก</p>
+            <div id="mort-empty-jump" class="no-print"></div>
+          </div>
+        </div>
+
+        <!-- Supporting Charts -->
+        <div id="mort-charts-grid" class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div class="card-surface print-card print-break-avoid rounded-2xl p-4 sm:p-5 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-sm font-bold text-navy-900">อันดับชนิดสัตว์น้ำที่ตายมากที่สุด (10 อันดับ)</h3>
+              <span class="text-[11px] text-slate-500">ตัว / บาท</span>
+            </div>
+            <div id="mort-water-share" class="space-y-1.5"></div>
+            <div id="mort-chart-species" class="space-y-2 pt-1"></div>
+          </div>
+          <div class="card-surface print-card print-break-avoid rounded-2xl p-4 sm:p-5 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-sm font-bold text-navy-900">จำนวนสัตว์น้ำที่ตายแยกตามตู้จัดแสดง (10 อันดับ)</h3>
+              <span class="text-[11px] text-slate-500">ตัว / จำนวนชนิด</span>
+            </div>
+            <div id="mort-chart-tanks" class="space-y-2"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: MONTHLY REPORT & GOVERNMENT MEMO (สรุปเดือน & บันทึกข้อความ) -->
     <section id="tab-report" class="tab-panel hidden space-y-4">
       <!-- Report Controls -->
       <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-wrap items-center justify-between gap-3 no-print">
@@ -567,31 +737,38 @@
       </article>
     </section>
 
+    <footer class="pt-2 pb-4 text-center text-xs text-slate-400 no-print">
+      พัฒนาโดย <span class="font-semibold text-slate-600">นราธิป ลีธีระ</span> • กลุ่มพิพิธภัณฑ์สัตว์น้ำ อุทยานวิทยาศาสตร์พระจอมเกล้า ณ หว้ากอ
+    </footer>
   </main>
 
-  <!-- Mobile Bottom Navigation (5 items) -->
+  <!-- Mobile Bottom Navigation (6 items) -->
   <nav class="md:hidden fixed bottom-0 inset-x-0 z-30 bg-white border-t border-slate-200 shadow-lg no-print" aria-label="เมนูหลักมือถือ">
-    <div class="grid grid-cols-5 h-16">
-      <button data-tab="record" class="mnav-btn flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold">
+    <div class="grid grid-cols-6 h-16">
+      <button data-tab="record" class="mnav-btn flex flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-semibold">
         <i data-lucide="plus-circle" class="w-5 h-5"></i>
         <span>บันทึก</span>
       </button>
-      <button data-tab="transfers" class="mnav-btn relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold">
+      <button data-tab="transfers" class="mnav-btn relative flex flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-semibold">
         <i data-lucide="arrow-left-right" class="w-5 h-5"></i>
         <span>รอรับเข้า</span>
-        <span class="pending-badge hidden absolute top-1.5 right-3 px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-amber-500 text-navy-950 tabular-nums">0</span>
+        <span class="pending-badge hidden absolute top-1.5 right-2 px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-amber-500 text-navy-950 tabular-nums">0</span>
       </button>
-      <button data-tab="tanks" class="mnav-btn flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold">
+      <button data-tab="tanks" class="mnav-btn flex flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-semibold">
         <i data-lucide="layers" class="w-5 h-5"></i>
         <span>สต็อกตู้</span>
       </button>
-      <button data-tab="logs" class="mnav-btn flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold">
+      <button data-tab="logs" class="mnav-btn flex flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-semibold">
         <i data-lucide="clipboard-list" class="w-5 h-5"></i>
         <span>ประวัติ</span>
       </button>
-      <button data-tab="report" class="mnav-btn flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold">
+      <button data-tab="mortality" class="mnav-btn flex flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-semibold">
+        <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+        <span>สรุปตาย</span>
+      </button>
+      <button data-tab="report" class="mnav-btn flex flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-semibold">
         <i data-lucide="file-text" class="w-5 h-5"></i>
-        <span>สรุปเดือน</span>
+        <span>รายงาน</span>
       </button>
     </div>
   </nav>
@@ -632,12 +809,49 @@
           <button id="btn-assign-owner" type="button" class="tap-target px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700">บันทึกเจ้าของตู้</button>
         </div>
 
+        <!-- Add Non-Central Species (Settings Only) -->
+        <div class="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-2.5">
+          <div>
+            <p class="font-semibold text-navy-900">เพิ่มชนิดสัตว์น้ำใหม่ (นอกบัญชีกลาง)</p>
+            <p class="text-xs text-slate-500 mt-0.5">เพิ่มเฉพาะชนิดที่ยังไม่มีในบัญชีกลาง ระบบจะตรวจชื่อซ้ำให้อัตโนมัติและออกรหัสแยก (SPX)</p>
+          </div>
+          <div>
+            <input id="new-species-name" type="text" placeholder="ชื่อภาษาไทย เช่น ปลาการ์ตูนอินเดียแดง..." class="tap-target w-full rounded-xl border border-slate-300 px-3 py-2 bg-white text-sm" />
+            <div id="new-species-dup-hint" class="hidden mt-1.5 text-xs rounded-lg px-2.5 py-1.5"></div>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <select id="new-species-water" class="tap-target rounded-xl border border-slate-300 px-3 py-2 bg-white text-sm">
+              <option value="น้ำเค็ม">น้ำเค็ม</option>
+              <option value="น้ำจืด">น้ำจืด</option>
+            </select>
+            <select id="new-species-unit" class="tap-target rounded-xl border border-slate-300 px-3 py-2 bg-white text-sm">
+              <option value="PER_UNIT">บาท / ตัว</option>
+              <option value="PER_KG">บาท / กิโลกรัม</option>
+            </select>
+          </div>
+          <div>
+            <label for="new-species-price" class="block text-xs font-semibold text-slate-600 mb-1">ราคากลางอ้างอิง (บาท)</label>
+            <input id="new-species-price" type="number" min="0" step="1" value="0" class="tap-target w-full rounded-xl border border-slate-300 px-3 py-2 bg-white text-sm tabular-nums" />
+          </div>
+          <label class="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
+            <input id="new-species-large" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+            <span>บังคับชั่งน้ำหนักตอนตาย (ปลาขนาดใหญ่ / Species_Rules)</span>
+          </label>
+          <div class="flex items-center justify-between gap-2">
+            <button id="btn-add-species" type="button" class="tap-target px-4 py-2 rounded-xl bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed">เพิ่มชนิดสัตว์น้ำใหม่</button>
+          </div>
+          <div id="custom-species-list" class="hidden pt-2 border-t border-emerald-200/80 text-xs text-slate-600 space-y-1"></div>
+        </div>
+
         <!-- Apps Script Live Sync -->
         <div class="p-3.5 rounded-xl bg-sky-50/70 border border-sky-200 space-y-2">
           <p class="font-semibold text-navy-900">เชื่อมต่อ Google Sheets (Apps Script URL)</p>
           <input id="input-api-url" type="url" class="tap-target w-full rounded-xl border border-slate-300 px-3 py-2 bg-white text-xs font-mono" />
-          <div class="flex items-center gap-2">
-            <button id="btn-save-api-url" type="button" class="tap-target px-3.5 py-1.5 rounded-xl bg-navy-900 text-white text-xs font-semibold hover:bg-navy-800">บันทึก URL & ซิงก์ทันที</button>
+          <div class="flex flex-wrap items-center gap-2">
+            <button id="btn-save-api-url" type="button" class="tap-target btn-press px-3.5 py-1.5 rounded-xl bg-navy-900 text-white text-xs font-semibold hover:bg-navy-800">บันทึก URL & ซิงก์ทันที</button>
+            <button id="btn-sync-central" type="button" class="tap-target btn-press px-3.5 py-1.5 rounded-xl bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 inline-flex items-center gap-1.5">
+              <i data-lucide="database" class="w-3.5 h-3.5"></i> ซิงก์ชื่อ-ราคาจากชีตกลาง
+            </button>
             <span id="modal-sync-status" class="text-xs text-slate-600"></span>
           </div>
         </div>
@@ -705,6 +919,164 @@
     </div>
   </div>
 
+  <!-- Modal: Aquatic Animal Stock Card & Lifecycle History -->
+  <div id="modal-stockcard" class="hidden fixed inset-0 z-50 bg-slate-900/55 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full sm:max-w-xl rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+      <!-- Clean Header -->
+      <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-navy-900 text-white no-print">
+        <div class="min-w-0">
+          <h2 id="sc-table-title" class="text-base font-bold truncate">ประวัติสัตว์น้ำ</h2>
+          <p class="text-xs text-sky-200/80">ดูวันที่รับเข้า และวันที่ตายของชนิดนี้ในตู้นี้</p>
+        </div>
+        <button id="btn-close-stockcard" type="button" class="tap-target w-9 h-9 rounded-lg hover:bg-white/15 flex items-center justify-center shrink-0" aria-label="ปิด">
+          <i data-lucide="x" class="w-5 h-5 text-white"></i>
+        </button>
+      </div>
+
+      <div class="p-4 sm:p-5 overflow-y-auto space-y-4">
+        <!-- Quick Tank & Species Picker -->
+        <div class="grid grid-cols-2 gap-2.5 no-print">
+          <div>
+            <label for="sc-tank-select" class="block text-xs font-semibold text-slate-600 mb-1">ตู้จัดแสดง</label>
+            <select id="sc-tank-select" class="tap-target w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold bg-white"></select>
+          </div>
+          <div>
+            <label for="sc-species-select" class="block text-xs font-semibold text-slate-600 mb-1">ชนิดสัตว์น้ำ</label>
+            <select id="sc-species-select" class="tap-target w-full rounded-xl border border-slate-300 px-3 py-2 text-sm font-semibold bg-white"></select>
+          </div>
+        </div>
+
+        <!-- One-Glance Summary Strip (3 clean numbers) -->
+        <div class="rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3 flex items-center justify-between gap-3 text-center">
+          <div class="flex-1">
+            <div class="text-[11px] font-semibold text-slate-500">รับเข้าครั้งแรก</div>
+            <div id="sc-first-in" class="text-sm font-bold text-navy-900 mt-0.5 tabular-nums">-</div>
+            <div id="sc-lifespan" class="text-[11px] text-sky-700 font-medium tabular-nums">-</div>
+          </div>
+          <div class="w-px h-9 bg-slate-200"></div>
+          <div class="flex-1">
+            <div class="text-[11px] font-semibold text-slate-500">คงเหลือตอนนี้</div>
+            <div id="sc-current-qty" class="text-base font-bold text-emerald-700 mt-0.5 tabular-nums">0 ตัว</div>
+          </div>
+          <div class="w-px h-9 bg-slate-200"></div>
+          <div class="flex-1">
+            <div class="text-[11px] font-semibold text-slate-500">ตายสะสม</div>
+            <div id="sc-dead-summary" class="text-base font-bold text-rose-700 mt-0.5 tabular-nums">0 ตัว</div>
+            <div id="sc-last-death" class="text-[11px] text-slate-500 tabular-nums">-</div>
+          </div>
+        </div>
+
+        <!-- Block 1: ประวัติรับเข้า (When received) -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-emerald-800 flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+              รับเข้ามาเมื่อไหร่บ้าง
+            </h3>
+            <span id="sc-in-count" class="text-xs font-semibold text-emerald-700 tabular-nums"></span>
+          </div>
+          <div id="sc-intake-list" class="space-y-1.5"></div>
+        </div>
+
+        <!-- Block 2: ประวัติการตาย (When died) -->
+        <div class="space-y-2 pt-2 border-t border-slate-100">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold text-rose-800 flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+              ตายไปเมื่อไหร่บ้าง
+            </h3>
+            <span id="sc-death-count" class="text-xs font-semibold text-rose-700 tabular-nums"></span>
+          </div>
+          <div id="sc-death-list" class="space-y-1.5"></div>
+        </div>
+
+        <!-- Optional Expandable Accounting Table (Progressive Disclosure) -->
+        <details class="rounded-xl border border-slate-200 bg-slate-50/70 p-3 no-print">
+          <summary class="text-xs font-semibold text-slate-600 cursor-pointer select-none flex items-center justify-between">
+            <span>ดูตาราง Stock Card ฉบับเต็ม / ส่งออก CSV</span>
+            <span class="text-sky-700">คลิกเพื่อขยาย</span>
+          </summary>
+          <div class="mt-3 space-y-2.5">
+            <div class="flex items-center justify-end gap-1.5">
+              <button id="btn-copy-stockcard" type="button" class="btn-press px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-xs font-semibold inline-flex items-center gap-1">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i> คัดลอกตาราง
+              </button>
+              <button id="btn-csv-stockcard" type="button" class="btn-press px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-xs font-semibold inline-flex items-center gap-1">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i> ส่งออก CSV
+              </button>
+            </div>
+            <div class="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <table class="w-full text-xs border-collapse min-w-[500px] tabular-nums">
+                <thead>
+                  <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                    <th class="py-1.5 px-2 text-left font-bold">วันที่</th>
+                    <th class="py-1.5 px-2 text-right font-bold">เดิม</th>
+                    <th class="py-1.5 px-2 text-right font-bold text-emerald-700">เพิ่ม</th>
+                    <th class="py-1.5 px-2 text-right font-bold text-amber-700">ออก</th>
+                    <th class="py-1.5 px-2 text-right font-bold text-rose-700">ตาย</th>
+                    <th class="py-1.5 px-2 text-right font-bold">คงเหลือ</th>
+                    <th class="py-1.5 px-2 text-left font-bold">หมายเหตุ</th>
+                  </tr>
+                </thead>
+                <tbody id="sc-table-body" class="divide-y divide-slate-100"></tbody>
+              </table>
+            </div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Quick Add New Species (from Intake screen) -->
+  <div id="modal-quick-species" class="hidden fixed inset-0 z-50 bg-slate-900/55 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 no-print">
+    <div class="bg-white w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div>
+          <h3 class="text-base font-bold text-navy-900">เพิ่มชนิดสัตว์น้ำใหม่ (นอกบัญชีกลาง)</h3>
+          <p class="text-xs text-slate-500">ระบบจะออกรหัส SPX และเลือกเข้าช่องรับเข้าให้อัตโนมัติ</p>
+        </div>
+        <button id="btn-close-quick-sp" type="button" class="tap-target w-9 h-9 rounded-lg hover:bg-slate-100 flex items-center justify-center" aria-label="ปิด">
+          <i data-lucide="x" class="w-5 h-5 text-slate-600"></i>
+        </button>
+      </div>
+      <div class="space-y-3 text-sm">
+        <div>
+          <label for="qsp-name" class="block font-semibold text-slate-700 mb-1">ชื่อภาษาไทย <span class="text-rose-500">*</span></label>
+          <input id="qsp-name" type="text" placeholder="เช่น ปลาสินสมุทรจักรพรรดิ" class="tap-target w-full rounded-xl border border-slate-300 px-3 py-2 bg-white" />
+          <div id="qsp-dup-warn" class="hidden mt-1.5 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label for="qsp-water" class="block font-semibold text-slate-700 mb-1">ประเภทน้ำ</label>
+            <select id="qsp-water" class="tap-target w-full rounded-xl border border-slate-300 px-3 py-2 bg-white">
+              <option value="น้ำเค็ม">น้ำเค็ม</option>
+              <option value="น้ำจืด">น้ำจืด</option>
+            </select>
+          </div>
+          <div>
+            <label for="qsp-unit" class="block font-semibold text-slate-700 mb-1">หน่วยราคา</label>
+            <select id="qsp-unit" class="tap-target w-full rounded-xl border border-slate-300 px-3 py-2 bg-white">
+              <option value="PER_UNIT">บาท / ตัว</option>
+              <option value="PER_KG">บาท / กก.</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label for="qsp-price" class="block font-semibold text-slate-700 mb-1">ราคากลางอ้างอิง (บาท)</label>
+          <input id="qsp-price" type="number" min="0" value="0" class="tap-target w-full rounded-xl border border-slate-300 px-3 py-2 bg-white tabular-nums" />
+        </div>
+        <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+          <input id="qsp-large" type="checkbox" class="w-4 h-4 rounded border-slate-300 text-navy-900" />
+          <span>สัตว์น้ำขนาดใหญ่ (บังคับชั่งน้ำหนักตอนตาย)</span>
+        </label>
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button id="btn-cancel-quick-sp" type="button" class="tap-target px-4 py-2 rounded-xl border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50">ยกเลิก</button>
+        <button id="btn-save-quick-sp" type="button" class="tap-target btn-press px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">บันทึกและเลือกทันที</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: In-Page Confirmation -->
   <div id="modal-confirm" class="hidden fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4 no-print">
     <div class="bg-white w-full max-w-sm rounded-2xl p-5 shadow-xl space-y-4">
@@ -744,6 +1116,70 @@
     }
 
     let syncState = { online: false, syncing: false, lastSync: '' };
+    let syncRequestSeq = 0;
+
+    function getTodayIso() {
+      try {
+        return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Bangkok' });
+      } catch (e) {
+        return new Date().toISOString().slice(0, 10);
+      }
+    }
+
+    function normalizeState(data) {
+      if (!data || typeof data !== 'object') return data;
+      const trimStr = v => String(v == null ? '' : v).trim();
+      if (Array.isArray(data.species)) {
+        data.species.forEach(s => {
+          s.species_id = trimStr(s.species_id);
+          s.species_name_th = trimStr(s.species_name_th);
+          s.water_type = trimStr(s.water_type);
+          s.pricing_unit = trimStr(s.pricing_unit || 'PER_UNIT');
+        });
+      }
+      if (Array.isArray(data.largeSpeciesIds)) {
+        data.largeSpeciesIds = data.largeSpeciesIds.map(trimStr).filter(Boolean);
+      } else {
+        data.largeSpeciesIds = [];
+      }
+      if (Array.isArray(data.tanks)) {
+        data.tanks.forEach(t => {
+          t.tank_id = trimStr(t.tank_id);
+          t.tank_name = trimStr(t.tank_name);
+          t.water_type = trimStr(t.water_type);
+          t.tank_type = trimStr(t.tank_type || 'DISPLAY');
+          t.owner_staff_id = trimStr(t.owner_staff_id);
+        });
+      }
+      if (Array.isArray(data.lots)) {
+        data.lots.forEach(l => {
+          l.lot_id = trimStr(l.lot_id);
+          l.tank_id = trimStr(l.tank_id);
+          l.species_id = trimStr(l.species_id);
+          l.species_name_snapshot = trimStr(l.species_name_snapshot);
+          l.water_type = trimStr(l.water_type);
+          l.status = trimStr(l.status || 'ACTIVE').toUpperCase();
+        });
+      }
+      if (Array.isArray(data.mortalityLogs)) {
+        data.mortalityLogs.forEach(m => {
+          m.death_id = trimStr(m.death_id);
+          m.tank_id = trimStr(m.tank_id);
+          m.species_id = trimStr(m.species_id);
+          m.species_name_snapshot = trimStr(m.species_name_snapshot);
+        });
+      }
+      if (Array.isArray(data.movementLogs)) {
+        data.movementLogs.forEach(m => {
+          m.move_id = trimStr(m.move_id);
+          m.from_tank_id = trimStr(m.from_tank_id);
+          m.to_tank_id = trimStr(m.to_tank_id);
+          m.species_id = trimStr(m.species_id);
+          m.species_name_snapshot = trimStr(m.species_name_snapshot);
+        });
+      }
+      return data;
+    }
 
     function updateSyncUI() {
       const dot = document.getElementById('sync-dot');
@@ -770,6 +1206,7 @@
     async function syncFromCloud(silent) {
       const url = getApiUrl();
       if (!url) return false;
+      const reqSeq = ++syncRequestSeq;
       syncState.syncing = true;
       updateSyncUI();
       try {
@@ -786,9 +1223,10 @@
           if (!res.ok) throw new Error('HTTP ' + res.status);
           json = await res.json();
         }
+        if (reqSeq !== syncRequestSeq) return false;
         if (json && json.ok && json.data && Array.isArray(json.data.lots)) {
           const prevStaff = state.activeStaffId || 'STF001';
-          state = { ...json.data, activeStaffId: prevStaff };
+          state = normalizeState({ ...json.data, activeStaffId: prevStaff });
           if (!state.staff.some(s => s.staff_id === state.activeStaffId) && state.staff[0]) {
             state.activeStaffId = state.staff[0].staff_id;
           }
@@ -801,12 +1239,14 @@
         }
         throw new Error((json && json.error) || 'Invalid response');
       } catch (err) {
-        syncState.online = false;
+        if (reqSeq === syncRequestSeq) syncState.online = false;
         if (!silent) showToast('เชื่อมต่อชีตไม่สำเร็จ — ใช้ข้อมูลในเครื่องชั่วคราว', true);
         return false;
       } finally {
-        syncState.syncing = false;
-        updateSyncUI();
+        if (reqSeq === syncRequestSeq) {
+          syncState.syncing = false;
+          updateSyncUI();
+        }
       }
     }
 
@@ -856,13 +1296,14 @@
     }
 
     const CATEGORIES = {
-      IN: ['จัดซื้อ', 'จัดหา', 'บริจาค', 'ตู้อนุบาล', 'ตู้จัดแสดง', 'เพาะเลี้ยง'],
+      IN: ['จัดซื้อ', 'จัดหา', 'บริจาค', 'เคลมประกัน', 'ตู้อนุบาล', 'ตู้จัดแสดง', 'เพาะเลี้ยง'],
       OUT: ['ตู้อนุบาล', 'ตู้จัดแสดง', 'รักษา', 'เพาะเลี้ยง'],
       HEALTH_OUT: ['ส่งรักษา'],
       HEALTH_RETURN: ['รับคืนจากงานสุขภาพ']
     };
 
     const THAI_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    const THAI_MONTHS_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
 
     function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
@@ -871,12 +1312,12 @@
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
           const parsed = JSON.parse(raw);
-          if (parsed && Array.isArray(parsed.lots) && Array.isArray(parsed.species)) return parsed;
+          if (parsed && Array.isArray(parsed.lots) && Array.isArray(parsed.species)) return normalizeState(parsed);
         }
       } catch (e) {}
       const init = deepClone(SEED_DATA);
       init.activeStaffId = 'STF001';
-      return init;
+      return normalizeState(init);
     }
 
     function saveState() {
@@ -893,6 +1334,8 @@
       selectedSymptom: '',
       invFilter: 'ALL',
       logType: 'mortality',
+      mortFilter: 'ALL',
+      mortSort: 'qty_desc',
       expandedTanks: {},
       confirmCallback: null
     };
@@ -921,6 +1364,18 @@
       const y = parseInt(parts[0], 10) + 543;
       const m = parseInt(parts[1], 10) - 1;
       return `${THAI_MONTHS[m] || ''} ${y}`;
+    }
+    function toThaiShortMonthLabel(ym) {
+      const parts = String(ym || '').split('-');
+      if (parts.length !== 2) return ym;
+      const y = String(parseInt(parts[0], 10) + 543).slice(-2);
+      const m = parseInt(parts[1], 10) - 1;
+      return `${THAI_MONTHS_SHORT[m] || ''} ${y}`;
+    }
+    function csvSafeCell(v) {
+      const s = String(v == null ? '' : v);
+      const safe = /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+      return '"' + safe.replace(/"/g, '""') + '"';
     }
     function getSpecies(id) { return state.species.find(s => s.species_id === id); }
     function getTank(id) { return state.tanks.find(t => t.tank_id === id); }
@@ -971,21 +1426,28 @@
     }
 
     // FIFO Simulation & Execution
-    function simulateFifo(tankId, speciesId, qty, weightG) {
-      const lots = getTankActiveLots(tankId, speciesId);
+    function simulateFifo(tankId, speciesId, qty, weightG, targetLotId, eventDate) {
+      const lots = getTankActiveLots(tankId, speciesId).slice();
+      if (targetLotId && targetLotId !== 'AUTO_FIFO') {
+        lots.sort((a, b) => (a.lot_id === targetLotId ? -1 : b.lot_id === targetLotId ? 1 : 0));
+      }
       let need = qty;
       const breakdown = [];
       let totalCost = 0;
+      let hasWarranty = false;
       for (const lot of lots) {
         if (need <= 0) break;
         const take = Math.min(need, lot.qty_remaining);
+        const underWarranty = !!(lot.warranty_until && eventDate && eventDate <= lot.warranty_until);
+        if (underWarranty) hasWarranty = true;
         let cost = 0;
-        if (lot.pricing_unit === 'PER_KG') {
-          const kg = (Number(weightG) || 0) / 1000;
-          // proportional weight if split across lots
-          cost = Math.round(kg * (take / qty) * lot.unit_cost * 100) / 100;
-        } else {
-          cost = take * lot.unit_cost;
+        if (!underWarranty) {
+          if (lot.pricing_unit === 'PER_KG') {
+            const kg = (Number(weightG) || 0) / 1000;
+            cost = Math.round(kg * (take / qty) * lot.unit_cost * 100) / 100;
+          } else {
+            cost = take * lot.unit_cost;
+          }
         }
         breakdown.push({
           lot_id: lot.lot_id,
@@ -993,13 +1455,15 @@
           source_type: lot.source_type,
           pricing_unit: lot.pricing_unit,
           unit_cost: lot.unit_cost,
+          warranty_until: lot.warranty_until || '',
+          under_warranty: underWarranty,
           qty_deducted: take,
           cost
         });
         totalCost += cost;
         need -= take;
       }
-      return { ok: need === 0, shortage: need, breakdown, totalCost: Math.round(totalCost * 100) / 100 };
+      return { ok: need === 0, shortage: need, breakdown, totalCost: Math.round(totalCost * 100) / 100, hasWarranty };
     }
 
     function applyFifoDeduction(breakdown) {
@@ -1023,9 +1487,14 @@
           all: lockedRows.find(r => r.water_type === 'รวม')
         };
       }
-      // Compute live for current unlocked month (e.g., 2026-11) starting from 2026-10 locked baseline
-      const prevFw = state.monthlySnapshots.find(s => s.period_ym === '2026-10' && s.water_type === 'น้ำจืด');
-      const prevSw = state.monthlySnapshots.find(s => s.period_ym === '2026-10' && s.water_type === 'น้ำเค็ม');
+      // Compute live for current unlocked month starting from latest locked baseline prior to ym
+      const prevLockedMonths = state.monthlySnapshots
+        .filter(s => s.is_locked && s.period_ym && s.period_ym < ym)
+        .map(s => s.period_ym)
+        .sort((a, b) => b.localeCompare(a));
+      const prevYm = prevLockedMonths[0] || '';
+      const prevFw = prevYm ? state.monthlySnapshots.find(s => s.period_ym === prevYm && s.water_type === 'น้ำจืด') : null;
+      const prevSw = prevYm ? state.monthlySnapshots.find(s => s.period_ym === prevYm && s.water_type === 'น้ำเค็ม') : null;
 
       function calcFor(wtype, prev) {
         const tankIds = new Set(state.tanks.filter(t => t.water_type === wtype && t.tank_type === 'DISPLAY').map(t => t.tank_id));
@@ -1083,13 +1552,50 @@
     }
 
     // Rendering
+    function getAvailableMonths() {
+      const set = new Set();
+      set.add(getTodayIso().slice(0, 7));
+      state.monthlySnapshots.forEach(s => { if (s.period_ym) set.add(String(s.period_ym).slice(0, 7)); });
+      state.mortalityLogs.forEach(m => { if (m.death_date) set.add(String(m.death_date).slice(0, 7)); });
+      state.movementLogs.forEach(m => { if (m.move_date) set.add(String(m.move_date).slice(0, 7)); });
+      return Array.from(set).filter(ym => /^\d{4}-\d{2}$/.test(ym)).sort((a, b) => b.localeCompare(a));
+    }
+
+    function populateMonthSelects() {
+      const months = getAvailableMonths();
+      const lockedSet = new Set(state.monthlySnapshots.filter(s => s.is_locked).map(s => s.period_ym));
+      const logSel = document.getElementById('log-month-filter');
+      if (logSel) {
+        const prev = logSel.value || 'ALL';
+        logSel.innerHTML = `<option value="ALL">ทุกเดือน</option>` + months.map(ym =>
+          `<option value="${ym}">${toThaiMonthLabel(ym)}${lockedSet.has(ym) ? ' (ล็อกแล้ว)' : ''}</option>`
+        ).join('');
+        logSel.value = Array.from(logSel.options).some(o => o.value === prev) ? prev : 'ALL';
+      }
+      ['report-month-select', 'mort-month-select'].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const prev = sel.value;
+        sel.innerHTML = months.map(ym =>
+          `<option value="${ym}">${toThaiMonthLabel(ym)}${lockedSet.has(ym) ? ' (ปิดยอดแล้ว)' : ''}</option>`
+        ).join('');
+        if (prev && Array.from(sel.options).some(o => o.value === prev)) {
+          sel.value = prev;
+        } else if (sel.options[0]) {
+          sel.value = sel.options[0].value;
+        }
+      });
+    }
+
     function renderAll() {
+      populateMonthSelects();
       renderHeaderAndKpis();
       renderNavState();
       if (ui.activeTab === 'record') renderRecordTab();
       if (ui.activeTab === 'transfers') renderTransfersTab();
       if (ui.activeTab === 'tanks') renderTanksTab();
       if (ui.activeTab === 'logs') renderLogsTab();
+      if (ui.activeTab === 'mortality') renderMortalityTab();
       if (ui.activeTab === 'report') renderReportTab();
       if (window.lucide) lucide.createIcons();
     }
@@ -1106,9 +1612,12 @@
       document.getElementById('kpi-total-qty').textContent = fmtNum(totalQty);
       document.getElementById('kpi-total-species').textContent = `${totalSp} ชนิด • ${activeTanks} ตู้`;
 
-      const novSummary = computeMonthlyData('2026-11').all;
-      document.getElementById('kpi-month-dead').textContent = `${fmtNum(novSummary.qty_dead_total)} ตัว`;
-      document.getElementById('kpi-month-loss').textContent = `มูลค่า ${fmtMoney(novSummary.total_loss_baht)} บาท`;
+      const currentYm = getTodayIso().slice(0, 7);
+      const kpiMonthLbl = document.getElementById('kpi-month-label');
+      if (kpiMonthLbl) kpiMonthLbl.textContent = `ตาย ${toThaiShortMonthLabel(currentYm)}`;
+      const monthSummary = computeMonthlyData(currentYm).all;
+      document.getElementById('kpi-month-dead').textContent = `${fmtNum(monthSummary.qty_dead_total)} ตัว`;
+      document.getElementById('kpi-month-loss').textContent = `มูลค่า ${fmtMoney(monthSummary.total_loss_baht)} บาท`;
 
       const pendingCount = state.movementLogs.filter(m => m.transfer_status === 'PENDING_RECEIVE').length;
       document.getElementById('kpi-pending-count').textContent = fmtNum(pendingCount);
@@ -1128,13 +1637,13 @@
       });
       document.querySelectorAll('.mnav-btn').forEach(b => {
         const active = b.dataset.tab === ui.activeTab;
-        b.className = `mnav-btn relative flex flex-col items-center justify-center gap-0.5 text-[11px] font-semibold ${active ? 'text-sky-600' : 'text-slate-500'}`;
+        b.className = `mnav-btn relative flex flex-col items-center justify-center gap-0.5 px-0.5 text-[10px] font-semibold ${active ? 'text-sky-600' : 'text-slate-500'}`;
       });
     }
 
     function renderRecordTab() {
       const dateInput = document.getElementById('rec-date');
-      if (!dateInput.value) dateInput.value = '2026-11-25';
+      if (!dateInput.value) dateInput.value = getTodayIso();
 
       const locked = isMonthLocked(dateInput.value);
       document.getElementById('lock-warning-banner').classList.toggle('hidden', !locked);
@@ -1167,6 +1676,8 @@
       const dir = document.getElementById('mov-direction').value;
       const isIntake = isMov && (dir === 'IN' || dir === 'HEALTH_RETURN');
       document.getElementById('intake-price-fields').classList.toggle('hidden', !isIntake);
+      const qspBtn = document.getElementById('btn-quick-add-species');
+      if (qspBtn) qspBtn.classList.toggle('hidden', !isIntake);
       document.getElementById('fifo-preview-box').classList.toggle('hidden', isIntake);
 
       document.getElementById('tank-picker-label').innerHTML = isTrf
@@ -1197,7 +1708,7 @@
       updateDynamicRulesAndFifo();
     }
 
-    function renderTankGrid() {
+    function renderTankGrid(autoSelectIfHidden) {
       const q = document.getElementById('tank-search').value.trim().toLowerCase();
       document.querySelectorAll('.tfilter-btn').forEach(b => {
         const active = b.dataset.tfilter === ui.tankFilter;
@@ -1213,10 +1724,16 @@
         return true;
       });
 
+      let tankChanged = false;
+      if (autoSelectIfHidden && tanks.length > 0 && !tanks.some(t => t.tank_id === ui.selectedTankId)) {
+        ui.selectedTankId = tanks[0].tank_id;
+        tankChanged = true;
+      }
+
       const grid = document.getElementById('tank-grid');
       if (tanks.length === 0) {
         grid.innerHTML = `<div class="col-span-full text-center py-4 text-xs text-slate-500">ไม่พบตู้ตามเงื่อนไข (หากเลือก "ตู้ของฉัน" กรุณาผูกเจ้าของตู้ในเมนูตั้งค่าก่อน)</div>`;
-        return;
+        return tankChanged;
       }
 
       grid.innerHTML = tanks.map(t => {
@@ -1232,6 +1749,7 @@
             <div class="text-[11px] mt-1 tabular-nums ${selected ? 'text-sky-200' : 'text-slate-500'}">${fmtNum(qty)} ตัว</div>
           </button>`;
       }).join('');
+      return tankChanged;
     }
 
     function renderDestTankSelect() {
@@ -1240,47 +1758,91 @@
       const srcTank = getTank(ui.selectedTankId);
       const opts = state.tanks.filter(t => t.tank_type === 'DISPLAY' && t.is_active && t.tank_id !== ui.selectedTankId);
       sel.innerHTML = `<option value="">-- เลือกตู้ปลายทาง --</option>` + opts.map(t =>
-        `<option value="${t.tank_id}">${t.tank_id} (${t.water_type}${srcTank && t.water_type === srcTank.water_type ? '' : ' • ต่างประเภทน้ำ'})</option>`
+        `<option value="${escapeHtml(t.tank_id)}">${escapeHtml(t.tank_id)} (${escapeHtml(t.water_type)}${srcTank && t.water_type === srcTank.water_type ? '' : ' • ต่างประเภทน้ำ'})</option>`
       ).join('');
       if (opts.some(o => o.tank_id === prev)) sel.value = prev;
     }
 
-    function renderSpeciesDropdown() {
+    function flashSpeciesSelect() {
       const sel = document.getElementById('rec-species');
-      const prev = sel.value;
-      const q = document.getElementById('rec-species-search').value.trim().toLowerCase();
+      if (!sel) return;
+      sel.classList.add('ring-2', 'ring-sky-400', 'bg-sky-50/60');
+      clearTimeout(window._speciesFlashTimer);
+      window._speciesFlashTimer = setTimeout(() => {
+        sel.classList.remove('ring-2', 'ring-sky-400', 'bg-sky-50/60');
+      }, 360);
+    }
+
+    function renderSpeciesDropdown(options = {}) {
+      const resetSelection = Boolean(options && options.resetSelection);
+      const sel = document.getElementById('rec-species');
+      const searchInput = document.getElementById('rec-species-search');
+      const costInput = document.getElementById('intake-unit-cost');
+      if (resetSelection) {
+        if (searchInput) searchInput.value = '';
+        if (costInput) costInput.dataset.lastKey = '';
+      }
+
+      const prev = resetSelection ? '' : sel.value;
+      const q = (searchInput ? searchInput.value : '').trim().toLowerCase();
       const dir = document.getElementById('mov-direction').value;
       const isIntake = ui.recordMode === 'movement' && (dir === 'IN' || dir === 'HEALTH_RETURN');
+      const hintEl = document.getElementById('species-mode-hint');
 
-      document.getElementById('species-mode-hint').textContent = isIntake
-        ? 'เลือกจากบัญชีมาตรฐาน 135 ชนิด (กันสะกดผิด)'
-        : `เฉพาะชนิดที่มีอยู่ในตู้ ${ui.selectedTankId || '-'}`;
-
-      let list = [];
+      const optionNodes = [];
       if (isIntake) {
         const tank = getTank(ui.selectedTankId);
-        list = state.species.filter(s => s.is_active && (!q || s.species_name_th.toLowerCase().includes(q) || s.species_id.toLowerCase().includes(q)));
+        const activeList = state.species.filter(s => s.is_active);
+        const list = activeList.filter(s => !q || s.species_name_th.toLowerCase().includes(q) || s.species_id.toLowerCase().includes(q));
         if (tank) {
           list.sort((a, b) => (a.water_type === tank.water_type ? -1 : 1) - (b.water_type === tank.water_type ? -1 : 1));
         }
-        sel.innerHTML = list.map(s =>
-          `<option value="${s.species_id}">${s.species_name_th} [${s.water_type}]${s.reference_price > 0 ? ` • ${fmtNum(s.reference_price)} บ./${s.pricing_unit === 'PER_KG' ? 'กก.' : 'ตัว'}` : ''}</option>`
-        ).join('');
+        if (hintEl) {
+          hintEl.textContent = `บัญชีชนิดสัตว์น้ำ (${activeList.length} ชนิด) • เพิ่มชนิดใหม่ได้ที่ตั้งค่า`;
+          hintEl.className = 'text-xs text-slate-500';
+        }
+        if (list.length === 0) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = '-- ไม่พบชนิดสัตว์น้ำที่ค้นหา --';
+          optionNodes.push(opt);
+        } else {
+          list.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.species_id;
+            const priceText = s.reference_price > 0 ? ` • ${fmtNum(s.reference_price)} บ./${s.pricing_unit === 'PER_KG' ? 'กก.' : 'ตัว'}` : '';
+            opt.textContent = `${s.species_name_th} [${s.water_type}]${priceText}`;
+            optionNodes.push(opt);
+          });
+        }
       } else {
         const summary = getTankSpeciesSummary(ui.selectedTankId).filter(x => !q || x.name.toLowerCase().includes(q) || x.species_id.toLowerCase().includes(q));
+        if (hintEl) {
+          hintEl.textContent = `ตู้ ${ui.selectedTankId || '-'} • พบ ${summary.length} ชนิด`;
+          hintEl.className = 'px-2 py-0.5 rounded-full text-xs font-semibold bg-sky-100 text-sky-800';
+        }
         if (summary.length === 0) {
-          sel.innerHTML = `<option value="">-- ไม่มีสัตว์น้ำคงเหลือในตู้นี้ --</option>`;
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = q ? `-- ไม่พบชนิดที่ค้นหาในตู้ ${ui.selectedTankId || '-'} --` : `-- ไม่มีสัตว์น้ำคงเหลือในตู้ ${ui.selectedTankId || '-'} --`;
+          optionNodes.push(opt);
         } else {
-          sel.innerHTML = summary.map(x => {
-            const sp = getSpecies(x.species_id);
+          summary.forEach(x => {
+            const opt = document.createElement('option');
+            opt.value = x.species_id;
             const largeTag = isLargeSpecies(x.species_id) ? ' [ปลาใหญ่•ต้องชั่ง]' : '';
-            return `<option value="${x.species_id}">${x.name} — คงเหลือ ${fmtNum(x.qty)} ตัว${largeTag}</option>`;
-          }).join('');
+            opt.textContent = `${x.name} — คงเหลือ ${fmtNum(x.qty)} ตัว${largeTag}`;
+            optionNodes.push(opt);
+          });
         }
       }
 
-      if (Array.from(sel.options).some(o => o.value === prev)) {
+      sel.replaceChildren(...optionNodes);
+      if (!resetSelection && prev && optionNodes.some(o => o.value === prev)) {
         sel.value = prev;
+      } else {
+        sel.selectedIndex = 0;
+        sel.value = sel.options[0] ? sel.options[0].value : '';
       }
     }
 
@@ -1341,28 +1903,75 @@
         helper.textContent = 'ปลาขนาดเล็กไม่ต้องชั่งน้ำหนักก็ได้ แต่บังคับระบุอาการที่พบ';
       }
 
-      // FIFO Preview
+      // Inline Tank + Species History Strip (so data-entry staff immediately see receive & death dates for THIS tank + species)
+      const hStrip = document.getElementById('rec-species-history-strip');
+      const hText = document.getElementById('rec-species-history-text');
+      if (hStrip && hText) {
+        if (ui.selectedTankId && spId && sp) {
+          const hist = buildStockCard(ui.selectedTankId, spId);
+          if (hist.firstDate || hist.deadTotal > 0) {
+            const firstTxt = hist.firstDate ? `รับเข้าตู้ <b>${escapeHtml(ui.selectedTankId)}</b>: <b>${fmtThaiDate(hist.firstDate)}</b>` : `ยังไม่มีประวัติรับเข้าในตู้ <b>${escapeHtml(ui.selectedTankId)}</b>`;
+            const deathTxt = hist.deadTotal > 0 ? ` • ตายแล้ว <b>${fmtNum(hist.deadTotal)} ตัว</b> (ล่าสุด ${fmtThaiDate(hist.lastDeathDate)})` : ' • ยังไม่เคยตายในตู้นี้';
+            hText.innerHTML = firstTxt + deathTxt;
+            hStrip.classList.remove('hidden');
+          } else {
+            hStrip.classList.add('hidden');
+          }
+        } else {
+          hStrip.classList.add('hidden');
+        }
+      }
+
+      // Hybrid FIFO + Manual Lot Picker + Live Preview
+      const wrapLot = document.getElementById('wrap-lot-picker');
+      const lotSel = document.getElementById('rec-lot-select');
+      if (isIntake || !spId) {
+        if (wrapLot) wrapLot.classList.add('hidden');
+      } else {
+        const activeLots = getTankActiveLots(ui.selectedTankId, spId);
+        if (wrapLot && lotSel) {
+          wrapLot.classList.toggle('hidden', activeLots.length === 0);
+          document.getElementById('lot-picker-count').textContent = `มีทั้งหมด ${activeLots.length} ล็อตในตู้นี้`;
+          const key = `${ui.selectedTankId}_${spId}_${activeLots.map(l => l.lot_id + ':' + l.qty_remaining).join(',')}`;
+          if (lotSel.dataset.lotKey !== key) {
+            const prevLot = lotSel.value;
+            lotSel.innerHTML = `<option value="AUTO_FIFO">อัตโนมัติ (FIFO — ตัดล็อตเก่าสุดก่อน)</option>` +
+              activeLots.map(l => {
+                const wTxt = l.warranty_until ? ` [ประกันถึง ${fmtThaiDate(l.warranty_until)}]` : '';
+                const pTxt = l.unit_cost > 0 ? `${fmtNum(l.unit_cost)} บ./${l.pricing_unit === 'PER_KG' ? 'กก.' : 'ตัว'}` : '0 บ.';
+                return `<option value="${escapeHtml(l.lot_id)}">เลือกล็อต ${escapeHtml(l.lot_id)} • เข้า ${fmtThaiDate(l.received_date)} • ${escapeHtml(l.source_type)} • ${pTxt}${wTxt} (เหลือ ${fmtNum(l.qty_remaining)} ตัว)</option>`;
+              }).join('');
+            if (Array.from(lotSel.options).some(o => o.value === prevLot)) lotSel.value = prevLot;
+            lotSel.dataset.lotKey = key;
+          }
+        }
+      }
+
       if (!isIntake) {
         const listEl = document.getElementById('fifo-breakdown-list');
         const costEl = document.getElementById('fifo-total-cost');
         if (!spId) {
-          listEl.innerHTML = `<p class="text-slate-400">เลือกตู้และชนิดสัตว์น้ำเพื่อดูลำดับการตัดล็อตเก่าสุดก่อน</p>`;
+          listEl.innerHTML = `<p class="text-slate-400">เลือกตู้และชนิดสัตว์น้ำเพื่อดูลำดับการตัดล็อต</p>`;
           costEl.textContent = '0 บาท';
           return;
         }
         const weightG = document.getElementById('death-weight').value;
-        const sim = simulateFifo(ui.selectedTankId, spId, qty, weightG);
+        const targetLotId = lotSel ? lotSel.value : 'AUTO_FIFO';
+        const evDate = document.getElementById('rec-date').value;
+        const sim = simulateFifo(ui.selectedTankId, spId, qty, weightG, targetLotId, evDate);
         if (!sim.ok) {
           listEl.innerHTML = `<p class="text-rose-600 font-semibold">จำนวนเกินสต็อกคงเหลือในตู้ (ขาดอีก ${sim.shortage} ตัว)</p>`;
           costEl.textContent = '-';
         } else {
           listEl.innerHTML = sim.breakdown.map(b =>
             `<div class="flex items-center justify-between gap-2">
-              <span>• ${b.lot_id} (เข้า ${b.received_date} • ${b.source_type}) ตัด <b>${b.qty_deducted}</b> ตัว</span>
-              <span class="tabular-nums font-medium">${b.pricing_unit === 'PER_KG' ? `${fmtNum(b.unit_cost)} บ./กก.` : `${fmtNum(b.unit_cost)} บ./ตัว`} → ${fmtMoney(b.cost)} บ.</span>
+              <span>• ${escapeHtml(b.lot_id)} (เข้า ${fmtThaiDate(b.received_date)} • ${escapeHtml(b.source_type)}) ตัด <b>${b.qty_deducted}</b> ตัว${b.under_warranty ? ' <span class="px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-bold text-[10px]">ในประกัน•เคลมร้าน</span>' : ''}</span>
+              <span class="tabular-nums font-medium">${b.under_warranty ? '0 บ. (เคลมประกัน)' : (b.pricing_unit === 'PER_KG' ? `${fmtNum(b.unit_cost)} บ./กก.` : `${fmtNum(b.unit_cost)} บ./ตัว`) + ` → ${fmtMoney(b.cost)} บ.`}</span>
             </div>`
           ).join('');
-          costEl.textContent = ui.recordMode === 'transfer' ? 'ย้ายต้นทุนตามล็อต' : `มูลค่าซาก ${fmtMoney(sim.totalCost)} บาท`;
+          costEl.textContent = ui.recordMode === 'transfer'
+            ? 'ย้ายต้นทุนตามล็อต'
+            : (sim.hasWarranty && sim.totalCost === 0 ? '0 บาท (ตายในประกัน)' : `มูลค่าซาก ${fmtMoney(sim.totalCost)} บาท`);
         }
       }
     }
@@ -1410,7 +2019,8 @@
         }
         if (hasErr) return;
 
-        const sim = simulateFifo(tankId, spId, qty, weightG);
+        const targetLotId = (document.getElementById('rec-lot-select') || {}).value || 'AUTO_FIFO';
+        const sim = simulateFifo(tankId, spId, qty, weightG, targetLotId, dateVal);
         if (!sim.ok) { setError('err-qty', `จำนวนเกินสต็อกในตู้ (ขาดอีก ${sim.shortage} ตัว)`); return; }
 
         applyFifoDeduction(sim.breakdown);
@@ -1429,7 +2039,7 @@
           weight_g: weightG,
           unit_cost_applied: sim.breakdown[0] ? sim.breakdown[0].unit_cost : 0,
           total_loss_value: sim.totalCost,
-          source_note: note || (sim.breakdown[0] ? sim.breakdown[0].source_type : ''),
+          source_note: (sim.hasWarranty ? '[ตายในประกัน - เคลมร้าน] ' : '') + (note || (sim.breakdown[0] ? sim.breakdown[0].source_type : '')),
           recorded_by: state.activeStaffId,
           fifo_breakdown: sim.breakdown
         });
@@ -1439,13 +2049,15 @@
         document.getElementById('death-weight').value = '';
         document.getElementById('death-size').value = '';
         document.getElementById('rec-note').value = '';
+        document.getElementById('rec-species-search').value = '';
+        document.getElementById('death-symptom-custom').value = '';
         ui.selectedSymptom = '';
         renderAll();
         postToCloud('recordDeath', {
           death_date: dateVal, tank_id: tankId, species_id: spId,
           disposal_type: ui.selectedDisposal, qty, symptom: symp,
           size_cm: sizeRaw ? parseFloat(sizeRaw) : '', weight_g: weightG,
-          source_note: note, recorded_by: state.activeStaffId
+          source_note: note, recorded_by: state.activeStaffId, target_lot_id: targetLotId === 'AUTO_FIFO' ? '' : targetLotId
         }).then(r => {
           if (r.ok) { showToast(`บันทึกลงชีตแล้ว: ${sp.species_name_th} ${qty} ตัว (${fmtMoney(sim.totalCost)} บ.)`); syncFromCloud(true); }
           else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); syncFromCloud(true); }
@@ -1478,7 +2090,8 @@
             unit_cost: unitCost,
             qty_initial: qty,
             qty_remaining: qty,
-            status: 'ACTIVE'
+            status: 'ACTIVE',
+            warranty_until: document.getElementById('intake-has-warranty').checked ? (document.getElementById('intake-warranty-until').value || '') : ''
           });
           state.movementLogs.unshift({
             move_id: moveId, move_date: dateVal, direction: dir, category: cat,
@@ -1489,18 +2102,20 @@
           saveState();
           document.getElementById('rec-qty').value = 1;
           document.getElementById('rec-note').value = '';
+          document.getElementById('rec-species-search').value = '';
           renderAll();
           postToCloud('recordMovement', {
             move_date: dateVal, direction: dir, category: cat, tank_id: tankId,
             species_id: spId, qty, pricing_unit: pricingUnit, unit_cost: unitCost,
-            note, created_by: state.activeStaffId
+            note, created_by: state.activeStaffId, warranty_until: document.getElementById('intake-has-warranty').checked ? (document.getElementById('intake-warranty-until').value || '') : ''
           }).then(r => {
             if (r.ok) { showToast(`บันทึกรับเข้าลงชีตแล้ว: ${sp.species_name_th} ${qty} ตัว`); syncFromCloud(true); }
             else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); syncFromCloud(true); }
             else { showToast(`บันทึกรับเข้าในเครื่องแล้ว: ${sp.species_name_th} ${qty} ตัว (ออฟไลน์)`); }
           });
         } else {
-          const sim = simulateFifo(tankId, spId, qty, 0);
+          const targetLotId = (document.getElementById('rec-lot-select') || {}).value || 'AUTO_FIFO';
+          const sim = simulateFifo(tankId, spId, qty, 0, targetLotId, dateVal);
           if (!sim.ok) { setError('err-qty', `จำนวนเกินสต็อกในตู้ (ขาดอีก ${sim.shortage} ตัว)`); return; }
           applyFifoDeduction(sim.breakdown);
           state.movementLogs.unshift({
@@ -1513,10 +2128,11 @@
           saveState();
           document.getElementById('rec-qty').value = 1;
           document.getElementById('rec-note').value = '';
+          document.getElementById('rec-species-search').value = '';
           renderAll();
           postToCloud('recordMovement', {
             move_date: dateVal, direction: dir, category: cat, tank_id: tankId,
-            species_id: spId, qty, note, created_by: state.activeStaffId
+            species_id: spId, qty, note, created_by: state.activeStaffId, target_lot_id: targetLotId === 'AUTO_FIFO' ? '' : targetLotId
           }).then(r => {
             if (r.ok) { showToast(`บันทึกย้ายออกลงชีตแล้ว: ${sp.species_name_th} ${qty} ตัว`); syncFromCloud(true); }
             else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); syncFromCloud(true); }
@@ -1531,7 +2147,8 @@
         if (!destId) { setError('err-dest-tank', 'กรุณาเลือกตู้ปลายทาง'); hasErr = true; }
         if (hasErr) return;
 
-        const sim = simulateFifo(tankId, spId, qty, 0);
+        const targetLotId = (document.getElementById('rec-lot-select') || {}).value || 'AUTO_FIFO';
+          const sim = simulateFifo(tankId, spId, qty, 0, targetLotId, dateVal);
         if (!sim.ok) { setError('err-qty', `จำนวนเกินสต็อกในตู้ (ขาดอีก ${sim.shortage} ตัว)`); return; }
 
         applyFifoDeduction(sim.breakdown);
@@ -1549,10 +2166,11 @@
         saveState();
         document.getElementById('rec-qty').value = 1;
         document.getElementById('rec-note').value = '';
+        document.getElementById('rec-species-search').value = '';
         renderAll();
         postToCloud('createTransfer', {
           move_date: dateVal, from_tank_id: tankId, to_tank_id: destId,
-          species_id: spId, qty, note, created_by: state.activeStaffId
+          species_id: spId, qty, note, created_by: state.activeStaffId, target_lot_id: targetLotId === 'AUTO_FIFO' ? '' : targetLotId
         }).then(r => {
           if (r.ok) { showToast(`ส่งคำขอย้ายลงชีตแล้ว: ไปตู้ ${destId} (รอปลายทางกดรับ)`); syncFromCloud(true); }
           else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); syncFromCloud(true); }
@@ -1689,13 +2307,17 @@
         const active = b.dataset.invfilter === ui.invFilter;
         b.className = `invfilter-btn tap-target px-3 py-2 rounded-xl text-xs font-semibold ${active ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`;
       });
+      const monthSel = document.getElementById('inv-month-select');
+      const selectedYm = monthSel ? monthSel.value : '2026-11';
       const q = document.getElementById('inv-search').value.trim().toLowerCase();
+
       const tanks = state.tanks.filter(t => {
         if (t.tank_type !== 'DISPLAY' || !t.is_active) return false;
         if (ui.invFilter !== 'ALL' && t.water_type !== ui.invFilter) return false;
         if (!q) return true;
         if (t.tank_id.toLowerCase().includes(q) || t.tank_name.toLowerCase().includes(q)) return true;
-        return getTankSpeciesSummary(t.tank_id).some(s => s.name.toLowerCase().includes(q));
+        if (getTankSpeciesSummary(t.tank_id).some(s => s.name.toLowerCase().includes(q))) return true;
+        return state.mortalityLogs.some(m => m.tank_id === t.tank_id && (selectedYm === 'ALL' || m.death_date.startsWith(selectedYm)) && m.species_name_snapshot.toLowerCase().includes(q));
       });
 
       const container = document.getElementById('inventory-tank-list');
@@ -1704,43 +2326,121 @@
         return;
       }
 
+      const todayIso = new Date().toISOString().slice(0, 10);
+
       container.innerHTML = tanks.map(t => {
         const speciesSum = getTankSpeciesSummary(t.tank_id);
-        const total = speciesSum.reduce((s, x) => s + x.qty, 0);
+        const totalNow = speciesSum.reduce((s, x) => s + x.qty, 0);
+        const tankDeaths = state.mortalityLogs.filter(m => m.tank_id === t.tank_id && (selectedYm === 'ALL' || m.death_date.startsWith(selectedYm)));
+        const deadQtyMonth = tankDeaths.reduce((s, m) => s + m.qty, 0);
+        const tankMoves = state.movementLogs.filter(m =>
+          (selectedYm === 'ALL' || m.move_date.startsWith(selectedYm)) &&
+          m.transfer_status === 'COMPLETED' &&
+          (m.from_tank_id === t.tank_id || m.to_tank_id === t.tank_id)
+        );
         const owner = t.owner_staff_id ? getStaff(t.owner_staff_id) : null;
         const expanded = !!ui.expandedTanks[t.tank_id] || !!q;
         const wBadge = t.water_type === 'น้ำจืด' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700';
 
+        // Build per-species monthly activity rows for this tank (including species that died out in that month)
+        const spIds = new Set(speciesSum.map(s => s.species_id));
+        tankDeaths.forEach(m => spIds.add(m.species_id));
+        tankMoves.forEach(m => spIds.add(m.species_id));
+
+        const spRows = Array.from(spIds).map(sid => {
+          const spObj = getSpecies(sid);
+          const curEntry = speciesSum.find(x => x.species_id === sid);
+          const curQty = curEntry ? curEntry.qty : 0;
+          const mIn = tankMoves.filter(m => m.species_id === sid && m.to_tank_id === t.tank_id).reduce((s, m) => s + m.qty, 0);
+          const mOut = tankMoves.filter(m => m.species_id === sid && m.from_tank_id === t.tank_id).reduce((s, m) => s + m.qty, 0);
+          const mDead = tankDeaths.filter(m => m.species_id === sid).reduce((s, m) => s + m.qty, 0);
+          const startEst = Math.max(0, curQty - mIn + mOut + mDead);
+          return {
+            species_id: sid,
+            name: (curEntry && curEntry.name) || (spObj && spObj.species_name_th) || sid,
+            lots: curEntry ? curEntry.lots : [],
+            startEst, mIn, mOut, mDead, curQty
+          };
+        });
+
         return `
           <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
-            <button type="button" data-toggle-tank="${t.tank_id}" class="tap-target w-full px-4 py-3 flex items-center justify-between gap-2 text-left hover:bg-slate-50 transition">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <span class="font-bold text-sm text-navy-900">${t.tank_id}</span>
-                <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold ${wBadge}">${t.water_type}</span>
-                ${owner ? `<span class="text-xs text-slate-500 truncate hidden sm:inline">• ${owner.full_name}</span>` : ''}
+            <button type="button" data-toggle-tank="${escapeHtml(t.tank_id)}" class="tap-target w-full px-4 py-3 flex items-center justify-between gap-2 text-left hover:bg-slate-50 transition">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="font-bold text-sm text-navy-900">${escapeHtml(t.tank_id)}</span>
+                <span class="px-2 py-0.5 rounded-full text-[11px] font-semibold ${wBadge}">${escapeHtml(t.water_type)}</span>
+                ${deadQtyMonth > 0 ? `<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-700 tabular-nums">ตาย ${fmtNum(deadQtyMonth)}</span>` : ''}
+                ${owner ? `<span class="text-xs text-slate-500 truncate hidden sm:inline">• ${escapeHtml(owner.full_name)}</span>` : ''}
               </div>
               <div class="flex items-center gap-3 shrink-0">
                 <span class="text-xs text-slate-500 tabular-nums">${speciesSum.length} ชนิด</span>
-                <span class="text-sm font-bold text-navy-900 tabular-nums">${fmtNum(total)} ตัว</span>
+                <span class="text-sm font-bold text-navy-900 tabular-nums">${fmtNum(totalNow)} ตัว</span>
                 <i data-lucide="${expanded ? 'chevron-up' : 'chevron-down'}" class="w-4 h-4 text-slate-400"></i>
               </div>
             </button>
             ${expanded ? `
-              <div class="border-t border-slate-100 divide-y divide-slate-100 px-4 py-2 bg-slate-50/50">
-                ${speciesSum.length === 0 ? `<p class="py-2 text-xs text-slate-400">ไม่มีสัตว์น้ำคงเหลือ</p>` : speciesSum.map(sp => `
-                  <div class="py-2 space-y-1">
-                    <div class="flex items-center justify-between text-sm">
-                      <span class="font-semibold text-slate-800">${escapeHtml(sp.name)} <span class="text-xs font-normal text-slate-400">${escapeHtml(sp.species_id)}</span></span>
-                      <span class="font-bold text-navy-900 tabular-nums">${fmtNum(sp.qty)} ตัว</span>
-                    </div>
-                    <div class="pl-3 space-y-0.5">
-                      ${sp.lots.map(l => `
-                        <div class="flex flex-wrap items-center justify-between text-xs text-slate-500 tabular-nums">
-                          <span>${escapeHtml(l.lot_id)} • เข้า ${escapeHtml(l.received_date)} • ${escapeHtml(l.source_type)}</span>
-                          <span>${l.unit_cost > 0 ? `${fmtNum(l.unit_cost)} บ./${l.pricing_unit === 'PER_KG' ? 'กก.' : 'ตัว'}` : '0 บาท'} • เหลือ <b>${fmtNum(l.qty_remaining)}</b></span>
-                        </div>`).join('')}
-                    </div>
-                  </div>`).join('')}
+              <div class="border-t border-slate-100 p-3 sm:p-4 bg-slate-50/50 space-y-4">
+                <!-- Per-Tank Monthly Stock Table -->
+                <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+                  <table class="w-full text-xs border-collapse min-w-[460px] tabular-nums">
+                    <thead>
+                      <tr class="bg-slate-100 text-slate-700 border-b border-slate-200">
+                        <th class="py-2 px-2.5 text-left font-bold">ชนิดสัตว์น้ำ</th>
+                        <th class="py-2 px-1.5 text-right font-bold">เดิม</th>
+                        <th class="py-2 px-1.5 text-right font-bold text-emerald-700">เพิ่ม</th>
+                        <th class="py-2 px-1.5 text-right font-bold text-amber-700">ออก</th>
+                        <th class="py-2 px-1.5 text-right font-bold text-rose-700">ตาย</th>
+                        <th class="py-2 px-2 text-right font-bold text-navy-900">คงเหลือ</th>
+                        <th class="py-2 px-2 text-center font-bold">ประวัติ</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      ${spRows.length === 0 ? `<tr><td colspan="7" class="py-3 text-center text-slate-400">ไม่มีข้อมูลสัตว์น้ำในตู้นี้</td></tr>` : spRows.map(sp => `
+                        <tr>
+                          <td class="py-2 px-2.5">
+                            <div class="font-semibold text-slate-800">${escapeHtml(sp.name)}</div>
+                            ${sp.lots.length ? `<div class="mt-0.5 flex flex-wrap gap-1">${sp.lots.map(l => {
+                              const inWar = l.warranty_until && l.warranty_until >= todayIso;
+                              return `<span class="px-1.5 py-0.5 rounded bg-slate-100 text-[10px] text-slate-600">${fmtThaiDate(l.received_date)} • ${l.unit_cost > 0 ? fmtNum(l.unit_cost) + 'บ.' : '0บ.'} (${fmtNum(l.qty_remaining)})${inWar ? ' <b class="text-sky-700">ประกันถึง ' + fmtThaiDate(l.warranty_until) + '</b>' : ''}</span>`;
+                            }).join('')}</div>` : ''}
+                          </td>
+                          <td class="py-2 px-1.5 text-right text-slate-600">${fmtNum(sp.startEst)}</td>
+                          <td class="py-2 px-1.5 text-right font-semibold text-emerald-700">${sp.mIn ? '+' + fmtNum(sp.mIn) : '-'}</td>
+                          <td class="py-2 px-1.5 text-right font-semibold text-amber-700">${sp.mOut ? '-' + fmtNum(sp.mOut) : '-'}</td>
+                          <td class="py-2 px-1.5 text-right font-semibold text-rose-700">${sp.mDead ? '-' + fmtNum(sp.mDead) : '-'}</td>
+                          <td class="py-2 px-2 text-right font-bold text-navy-900">${fmtNum(sp.curQty)}</td>
+                          <td class="py-2 px-2 text-center">
+                            <button type="button" data-open-history-tank="${escapeHtml(t.tank_id)}" data-open-history-sp="${escapeHtml(sp.species_id)}" class="btn-press px-2 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 text-[11px] font-semibold">ดูประวัติ</button>
+                          </td>
+                        </tr>`).join('')}
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Per-Tank Mortality List for Selected Month -->
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="font-bold text-rose-800 flex items-center gap-1.5">
+                      <span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>
+                      รายการซากของตู้ ${escapeHtml(t.tank_id)} (${selectedYm === 'ALL' ? 'ทุกเดือน' : toThaiMonthLabel(selectedYm)})
+                    </span>
+                    <span class="font-semibold text-rose-700 tabular-nums">${tankDeaths.length ? `รวม ${fmtNum(deadQtyMonth)} ตัว` : 'ไม่มีการตาย'}</span>
+                  </div>
+                  ${tankDeaths.length === 0
+                    ? `<p class="text-xs text-slate-400 pl-3.5">ไม่มีรายการสัตว์น้ำตายในเดือนนี้</p>`
+                    : tankDeaths.map(m => `
+                      <div class="rounded-lg bg-rose-50/60 border border-rose-200/70 px-3 py-2 flex items-center justify-between gap-2 text-xs">
+                        <div class="min-w-0">
+                          <span class="font-bold text-slate-900">${fmtThaiDate(m.death_date)}</span>
+                          <span class="font-semibold text-slate-800 ml-1">${escapeHtml(m.species_name_snapshot)}</span>
+                          <span class="text-slate-600 ml-1">• ${escapeHtml(m.symptom)} (${escapeHtml(m.disposal_type)})</span>
+                        </div>
+                        <div class="text-right shrink-0 tabular-nums">
+                          <span class="font-bold text-rose-700">-${fmtNum(m.qty)} ตัว</span>
+                          <span class="text-slate-500 ml-1">(${fmtMoney(m.total_loss_value)} บ.)</span>
+                        </div>
+                      </div>`).join('')}
+                </div>
               </div>` : ''}
           </div>`;
       }).join('');
@@ -1836,6 +2536,305 @@
             </div>`;
         }).join('');
       }
+    }
+
+    function getMortalityWaterType(m) {
+      const sp = getSpecies(m.species_id);
+      if (sp && sp.water_type) return sp.water_type;
+      const t = getTank(m.tank_id);
+      return t && t.water_type ? t.water_type : 'น้ำเค็ม';
+    }
+
+    function computeMonthlyMortalitySummary(ym, waterFilter, searchQuery, sortKey) {
+      const q = String(searchQuery || '').trim().toLowerCase();
+      const monthLogs = state.mortalityLogs.filter(m => String(m.death_date || '').startsWith(ym));
+
+      const filtered = monthLogs.filter(m => {
+        const wt = getMortalityWaterType(m);
+        if (waterFilter && waterFilter !== 'ALL' && wt !== waterFilter) return false;
+        if (q) {
+          const spName = String(m.species_name_snapshot || '').toLowerCase();
+          const spId = String(m.species_id || '').toLowerCase();
+          const tid = String(m.tank_id || '').toLowerCase();
+          if (!spName.includes(q) && !spId.includes(q) && !tid.includes(q)) return false;
+        }
+        return true;
+      });
+
+      const speciesMap = new Map();
+      const tankMap = new Map();
+      let totalQty = 0;
+      let totalValue = 0;
+      let totalKept = 0;
+      let totalUnkept = 0;
+      let fwSpeciesSet = new Set();
+      let swSpeciesSet = new Set();
+      let fwQty = 0;
+      let swQty = 0;
+
+      filtered.forEach(m => {
+        const qty = Number(m.qty || 0);
+        const val = Number(m.total_loss_value || 0);
+        const wt = getMortalityWaterType(m);
+        const spKey = m.species_id || m.species_name_snapshot;
+        const spName = m.species_name_snapshot || (getSpecies(m.species_id) ? getSpecies(m.species_id).species_name_th : m.species_id);
+        const tankId = m.tank_id || '-';
+
+        totalQty += qty;
+        totalValue += val;
+        if (m.disposal_type === 'เก็บซาก') totalKept += qty;
+        else totalUnkept += qty;
+        if (wt === 'น้ำจืด') { fwSpeciesSet.add(spKey); fwQty += qty; }
+        else { swSpeciesSet.add(spKey); swQty += qty; }
+
+        if (!speciesMap.has(spKey)) {
+          speciesMap.set(spKey, {
+            species_id: m.species_id,
+            species_name: spName,
+            water_type: wt,
+            qty: 0,
+            value: 0,
+            tanksMap: new Map()
+          });
+        }
+        const spEntry = speciesMap.get(spKey);
+        spEntry.qty += qty;
+        spEntry.value += val;
+        spEntry.tanksMap.set(tankId, (spEntry.tanksMap.get(tankId) || 0) + qty);
+
+        if (!tankMap.has(tankId)) {
+          tankMap.set(tankId, { tank_id: tankId, water_type: wt, qty: 0, value: 0, speciesSet: new Set() });
+        }
+        const tEntry = tankMap.get(tankId);
+        tEntry.qty += qty;
+        tEntry.value += val;
+        tEntry.speciesSet.add(spKey);
+      });
+
+      const speciesRows = Array.from(speciesMap.values()).map(item => {
+        const tanks = Array.from(item.tanksMap.entries())
+          .map(([tank_id, qty]) => ({ tank_id, qty }))
+          .sort((a, b) => b.qty - a.qty || a.tank_id.localeCompare(b.tank_id));
+        const tankText = tanks.length === 1
+          ? tanks[0].tank_id
+          : tanks.map(t => `${t.tank_id} (${t.qty})`).join(', ');
+        return {
+          species_id: item.species_id,
+          species_name: item.species_name,
+          water_type: item.water_type,
+          qty: item.qty,
+          value: Math.round(item.value * 100) / 100,
+          tanks,
+          tankText
+        };
+      });
+
+      speciesRows.sort((a, b) => {
+        if (sortKey === 'value_desc') return (b.value - a.value) || (b.qty - a.qty) || a.species_name.localeCompare(b.species_name, 'th');
+        if (sortKey === 'name_asc') return a.species_name.localeCompare(b.species_name, 'th');
+        return (b.qty - a.qty) || (b.value - a.value) || a.species_name.localeCompare(b.species_name, 'th');
+      });
+
+      const tankRows = Array.from(tankMap.values())
+        .map(t => ({
+          tank_id: t.tank_id,
+          water_type: t.water_type,
+          qty: t.qty,
+          value: Math.round(t.value * 100) / 100,
+          speciesCount: t.speciesSet.size
+        }))
+        .sort((a, b) => (b.qty - a.qty) || (b.value - a.value) || a.tank_id.localeCompare(b.tank_id));
+
+      return {
+        ym,
+        speciesRows,
+        tankRows,
+        totals: {
+          speciesCount: speciesRows.length,
+          tankCount: tankRows.length,
+          qty: totalQty,
+          value: Math.round(totalValue * 100) / 100,
+          kept: totalKept,
+          unkept: totalUnkept,
+          fwSpecies: fwSpeciesSet.size,
+          swSpecies: swSpeciesSet.size,
+          fwQty,
+          swQty
+        }
+      };
+    }
+
+    function renderMortalityCharts(summary) {
+      const gridEl = document.getElementById('mort-charts-grid');
+      const shareEl = document.getElementById('mort-water-share');
+      const spEl = document.getElementById('mort-chart-species');
+      const tkEl = document.getElementById('mort-chart-tanks');
+      if (!gridEl || !shareEl || !spEl || !tkEl) return;
+
+      if (summary.speciesRows.length === 0) {
+        gridEl.classList.add('hidden');
+        return;
+      }
+      gridEl.classList.remove('hidden');
+
+      // Stacked water-type share bar
+      const totalQ = Math.max(1, summary.totals.qty);
+      const fwPct = Math.round((summary.totals.fwQty / totalQ) * 1000) / 10;
+      const swPct = Math.round((summary.totals.swQty / totalQ) * 1000) / 10;
+      shareEl.innerHTML = `
+        <div class="flex items-center justify-between text-xs text-slate-600 tabular-nums">
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-xs bg-emerald-600"></span>น้ำจืด <b>${fmtNum(summary.totals.fwQty)}</b> ตัว (${fwPct}%)</span>
+          <span class="inline-flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-xs bg-sky-600"></span>น้ำเค็ม <b>${fmtNum(summary.totals.swQty)}</b> ตัว (${swPct}%)</span>
+        </div>
+        <div class="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden flex">
+          <div class="bg-emerald-600 h-full" style="width:${fwPct}%"></div>
+          <div class="bg-sky-600 h-full" style="width:${swPct}%"></div>
+        </div>`;
+
+      // Top 10 Species horizontal bar chart (ordered by qty desc)
+      const topSpecies = [...summary.speciesRows].sort((a, b) => (b.qty - a.qty) || (b.value - a.value)).slice(0, 10);
+      const maxSpQty = Math.max(1, ...topSpecies.map(x => x.qty));
+      spEl.innerHTML = topSpecies.map(item => {
+        const pct = Math.max(4, Math.round((item.qty / maxSpQty) * 100));
+        const barColor = item.water_type === 'น้ำจืด' ? '#047857' : '#0284C7';
+        return `
+          <div class="space-y-1">
+            <div class="flex items-center justify-between gap-2 text-xs">
+              <span class="font-medium text-slate-800 truncate">${escapeHtml(item.species_name)}</span>
+              <span class="shrink-0 font-bold text-slate-900 tabular-nums">${fmtNum(item.qty)} ตัว${item.value > 0 ? ` • ${fmtMoney(item.value)} บ.` : ''}</span>
+            </div>
+            <svg width="100%" height="10" viewBox="0 0 100 10" preserveAspectRatio="none" class="rounded-full bg-slate-100 block" aria-hidden="true">
+              <rect x="0" y="0" width="${pct}" height="10" rx="5" fill="${barColor}"></rect>
+            </svg>
+          </div>`;
+      }).join('');
+
+      // Top 10 Tanks horizontal bar chart
+      const topTanks = summary.tankRows.slice(0, 10);
+      const maxTkQty = Math.max(1, ...topTanks.map(x => x.qty));
+      tkEl.innerHTML = topTanks.map(item => {
+        const pct = Math.max(4, Math.round((item.qty / maxTkQty) * 100));
+        const barColor = item.water_type === 'น้ำจืด' ? '#059669' : '#BE123C';
+        return `
+          <div class="space-y-1">
+            <div class="flex items-center justify-between gap-2 text-xs">
+              <span class="font-semibold text-navy-900">${escapeHtml(item.tank_id)} <span class="font-normal text-slate-500">(${escapeHtml(item.water_type)})</span></span>
+              <span class="shrink-0 font-bold text-slate-900 tabular-nums">${fmtNum(item.qty)} ตัว • ${item.speciesCount} ชนิด</span>
+            </div>
+            <svg width="100%" height="10" viewBox="0 0 100 10" preserveAspectRatio="none" class="rounded-full bg-slate-100 block" aria-hidden="true">
+              <rect x="0" y="0" width="${pct}" height="10" rx="5" fill="${barColor}"></rect>
+            </svg>
+          </div>`;
+      }).join('');
+    }
+
+    function renderMortalityTab() {
+      const monthSel = document.getElementById('mort-month-select');
+      const ym = (monthSel && monthSel.value) || getTodayIso().slice(0, 7);
+      const q = document.getElementById('mort-search').value;
+      const sortEl = document.getElementById('mort-sort');
+      if (sortEl) sortEl.value = ui.mortSort;
+
+      document.querySelectorAll('.mortfilter-btn').forEach(b => {
+        const active = b.dataset.mortfilter === ui.mortFilter;
+        b.className = `mortfilter-btn tap-target px-3 py-1.5 rounded-xl text-xs font-semibold ${active ? 'bg-navy-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`;
+      });
+
+      const summary = computeMonthlyMortalitySummary(ym, ui.mortFilter, q, ui.mortSort);
+      const mLabel = toThaiMonthLabel(ym);
+      document.getElementById('mort-period-title').textContent = mLabel;
+      document.getElementById('mort-filter-subtitle').textContent = ui.mortFilter === 'ALL' ? 'ทั้งหมด (น้ำจืด + น้ำเค็ม)' : ui.mortFilter;
+      document.getElementById('mort-tank-count-pill').textContent = `พบ ${fmtNum(summary.totals.tankCount)} ตู้`;
+
+      document.getElementById('mort-kpi-species').textContent = `${fmtNum(summary.totals.speciesCount)} ชนิด`;
+      document.getElementById('mort-kpi-species-sub').textContent = `น้ำจืด ${fmtNum(summary.totals.fwSpecies)} • น้ำเค็ม ${fmtNum(summary.totals.swSpecies)}`;
+      document.getElementById('mort-kpi-qty').textContent = `${fmtNum(summary.totals.qty)} ตัว`;
+      document.getElementById('mort-kpi-qty-sub').textContent = `เก็บซาก ${fmtNum(summary.totals.kept)} • ไม่เก็บ ${fmtNum(summary.totals.unkept)}`;
+      document.getElementById('mort-kpi-value').textContent = `${fmtMoney(summary.totals.value)} บาท`;
+
+      const tbody = document.getElementById('mort-table-body');
+      const tfoot = document.getElementById('mort-table-foot');
+      const emptyEl = document.getElementById('mort-empty-state');
+      const jumpEl = document.getElementById('mort-empty-jump');
+
+      if (summary.speciesRows.length === 0) {
+        tbody.innerHTML = '';
+        tfoot.innerHTML = '';
+        emptyEl.classList.remove('hidden');
+        // Offer jump to latest month that actually has mortality logs
+        const countsByMonth = {};
+        state.mortalityLogs.forEach(m => {
+          const mYm = String(m.death_date || '').slice(0, 7);
+          if (mYm && mYm !== ym) countsByMonth[mYm] = (countsByMonth[mYm] || 0) + Number(m.qty || 0);
+        });
+        const altMonth = Object.keys(countsByMonth).sort((a, b) => b.localeCompare(a))[0];
+        if (altMonth && !q && ui.mortFilter === 'ALL') {
+          jumpEl.innerHTML = `<button type="button" data-mort-jump-month="${escapeHtml(altMonth)}" class="tap-target px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold">ดูข้อมูลเดือน ${escapeHtml(toThaiMonthLabel(altMonth))} (${fmtNum(countsByMonth[altMonth])} ตัว)</button>`;
+        } else {
+          jumpEl.innerHTML = '';
+        }
+        renderMortalityCharts(summary);
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      tbody.innerHTML = summary.speciesRows.map((row, idx) => {
+        const wBadge = row.water_type === 'น้ำจืด' ? 'bg-emerald-100 text-emerald-700' : 'bg-sky-100 text-sky-700';
+        const tankBadges = row.tanks.map(t =>
+          `<span class="inline-flex items-center px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-slate-800 text-xs font-semibold">${escapeHtml(t.tank_id)}${row.tanks.length > 1 ? ` <span class="text-rose-700 ml-1">(${fmtNum(t.qty)})</span>` : ''}</span>`
+        ).join(' ');
+        return `
+          <tr class="hover:bg-slate-50/80">
+            <td class="py-2.5 px-2 text-center text-slate-500">${idx + 1}</td>
+            <td class="py-2.5 px-2 text-left">
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span class="font-semibold text-slate-900">${escapeHtml(row.species_name)}</span>
+                <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold ${wBadge}">${row.water_type === 'น้ำจืด' ? 'จืด' : 'เค็ม'}</span>
+              </div>
+            </td>
+            <td class="py-2.5 px-2 text-left"><div class="flex flex-wrap gap-1">${tankBadges}</div></td>
+            <td class="py-2.5 px-2 text-right font-bold text-rose-700">${fmtNum(row.qty)}</td>
+            <td class="py-2.5 px-2 text-right font-medium text-slate-800">${fmtMoney(row.value)}</td>
+          </tr>`;
+      }).join('');
+
+      tfoot.innerHTML = `
+        <tr>
+          <td colspan="2" class="py-2.5 px-2 text-left">รวมทั้งหมด ${fmtNum(summary.totals.speciesCount)} ชนิด</td>
+          <td class="py-2.5 px-2 text-left text-xs font-semibold text-slate-600">จาก ${fmtNum(summary.totals.tankCount)} ตู้</td>
+          <td class="py-2.5 px-2 text-right text-rose-700">${fmtNum(summary.totals.qty)} ตัว</td>
+          <td class="py-2.5 px-2 text-right">${fmtMoney(summary.totals.value)} บาท</td>
+        </tr>`;
+
+      renderMortalityCharts(summary);
+    }
+
+    function buildMortalityTableTsv(summary) {
+      const title = `สรุปรายชื่อสัตว์น้ำที่ตาย ประจำเดือน ${toThaiMonthLabel(summary.ym)}`;
+      const header = ['ลำดับ', 'ชื่อชนิดสัตว์น้ำ', 'ประเภทน้ำ', 'ตู้ที่ตาย', 'จำนวนที่ตาย (ตัว)', 'มูลค่า (บาท)'].join('\t');
+      const body = summary.speciesRows.map((r, i) =>
+        [i + 1, r.species_name, r.water_type, r.tankText, r.qty, r.value].join('\t')
+      ).join('\n');
+      const footer = ['รวมทั้งหมด', `${summary.totals.speciesCount} ชนิด`, '', `${summary.totals.tankCount} ตู้`, summary.totals.qty, summary.totals.value].join('\t');
+      return `${title}\n${header}\n${body}\n${footer}`;
+    }
+
+    function exportMortalityCsv(summary) {
+      const header = 'seq,species_id,species_name,water_type,tanks,qty_dead,total_loss_value\n';
+      const body = summary.speciesRows.map((r, i) =>
+        [
+          i + 1,
+          csvSafeCell(r.species_id),
+          csvSafeCell(r.species_name),
+          csvSafeCell(r.water_type),
+          csvSafeCell(r.tankText),
+          r.qty,
+          r.value
+        ].join(',')
+      ).join('\n');
+      const footer = ['รวมทั้งหมด', '', csvSafeCell(`${summary.totals.speciesCount} ชนิด`), '', csvSafeCell(`${summary.totals.tankCount} ตู้`), summary.totals.qty, summary.totals.value].join(',');
+      downloadFile(`waghor_mortality_summary_${summary.ym}.csv`, '\uFEFF' + header + body + '\n' + footer, 'text/csv;charset=utf-8');
+      showToast(`ส่งออกไฟล์ CSV สรุปการตาย ${toThaiMonthLabel(summary.ym)} แล้ว`);
     }
 
     function buildMemoText(ym, data) {
@@ -1976,10 +2975,64 @@
       document.getElementById('memo-signer-pos').textContent = staff ? staff.position : 'นักวิชาการศึกษา';
     }
 
+    function normalizeSpeciesName(name) {
+      return String(name || '').replace(/\s+/g, '').toLowerCase();
+    }
+
+    function renderCustomSpeciesList() {
+      const box = document.getElementById('custom-species-list');
+      if (!box) return;
+      const custom = state.species.filter(s => /^SPX/i.test(s.species_id));
+      if (custom.length === 0) {
+        box.classList.add('hidden');
+        box.innerHTML = '';
+        return;
+      }
+      box.classList.remove('hidden');
+      box.innerHTML = `<p class="font-semibold text-emerald-900">ชนิดนอกบัญชีกลางที่เพิ่มไว้ (${custom.length} ชนิด):</p>
+        <div class="flex flex-wrap gap-1.5">${custom.map(s =>
+          `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white border border-emerald-200 text-[11px] font-medium text-slate-700">${escapeHtml(s.species_id)}: ${escapeHtml(s.species_name_th)} (${escapeHtml(s.water_type)})</span>`
+        ).join('')}</div>`;
+    }
+
+    function updateNewSpeciesDupHint() {
+      const nameInput = document.getElementById('new-species-name');
+      const hintEl = document.getElementById('new-species-dup-hint');
+      const btn = document.getElementById('btn-add-species');
+      if (!nameInput || !hintEl || !btn) return;
+      const raw = nameInput.value.trim();
+      const norm = normalizeSpeciesName(raw);
+      if (!norm) {
+        hintEl.className = 'hidden mt-1.5 text-xs rounded-lg px-2.5 py-1.5';
+        hintEl.textContent = '';
+        btn.disabled = false;
+        return;
+      }
+      const exact = state.species.find(s => normalizeSpeciesName(s.species_name_th) === norm);
+      if (exact) {
+        hintEl.className = 'mt-1.5 text-xs rounded-lg px-2.5 py-1.5 bg-rose-100 text-rose-800 border border-rose-200 font-medium';
+        hintEl.textContent = `ซ้ำกับชนิดที่มีอยู่แล้ว: ${exact.species_name_th} (${exact.species_id} • ${exact.water_type})`;
+        btn.disabled = true;
+        return;
+      }
+      btn.disabled = false;
+      const similar = state.species.filter(s => {
+        const sn = normalizeSpeciesName(s.species_name_th);
+        return sn.includes(norm) || (norm.length >= 3 && norm.includes(sn));
+      }).slice(0, 5);
+      if (similar.length > 0) {
+        hintEl.className = 'mt-1.5 text-xs rounded-lg px-2.5 py-1.5 bg-amber-100 text-amber-900 border border-amber-200';
+        hintEl.innerHTML = `<span class="font-semibold">พบชื่อใกล้เคียงในบัญชี:</span> ${similar.map(s => escapeHtml(`${s.species_name_th} (${s.species_id})`)).join(', ')}`;
+      } else {
+        hintEl.className = 'hidden mt-1.5 text-xs rounded-lg px-2.5 py-1.5';
+        hintEl.textContent = '';
+      }
+    }
+
     function openSettingsModal() {
       const staffSel = document.getElementById('select-active-staff');
       const assignStaffSel = document.getElementById('assign-staff-id');
-      const staffOpts = state.staff.map(s => `<option value="${s.staff_id}">${s.full_name} (${s.position})</option>`).join('');
+      const staffOpts = state.staff.map(s => `<option value="${escapeHtml(s.staff_id)}">${escapeHtml(s.full_name)} (${escapeHtml(s.position)})</option>`).join('');
       staffSel.innerHTML = staffOpts;
       staffSel.value = state.activeStaffId;
       assignStaffSel.innerHTML = `<option value="">-- ยังไม่ระบุ --</option>` + staffOpts;
@@ -1987,9 +3040,11 @@
       const assignTankSel = document.getElementById('assign-tank-id');
       assignTankSel.innerHTML = state.tanks.filter(t => t.tank_type === 'DISPLAY').map(t => {
         const ow = t.owner_staff_id ? getStaff(t.owner_staff_id) : null;
-        return `<option value="${t.tank_id}">${t.tank_id} (${t.water_type})${ow ? ` — ${ow.full_name}` : ''}</option>`;
+        return `<option value="${escapeHtml(t.tank_id)}">${escapeHtml(t.tank_id)} (${escapeHtml(t.water_type)})${ow ? ` — ${escapeHtml(ow.full_name)}` : ''}</option>`;
       }).join('');
       document.getElementById('input-api-url').value = getApiUrl();
+      renderCustomSpeciesList();
+      updateNewSpeciesDupHint();
       updateSyncUI();
       document.getElementById('modal-settings').classList.remove('hidden');
     }
@@ -2004,19 +3059,19 @@
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
-    function copyText(text) {
+    function copyText(text, successMsg = 'คัดลอกบันทึกข้อความแล้ว') {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => showToast('คัดลอกบันทึกข้อความแล้ว')).catch(() => fallbackCopy(text));
+        navigator.clipboard.writeText(text).then(() => showToast(successMsg)).catch(() => fallbackCopy(text, successMsg));
       } else {
-        fallbackCopy(text);
+        fallbackCopy(text, successMsg);
       }
     }
-    function fallbackCopy(text) {
+    function fallbackCopy(text, successMsg = 'คัดลอกบันทึกข้อความแล้ว') {
       const ta = document.createElement('textarea');
       ta.value = text;
       document.body.appendChild(ta);
       ta.select();
-      try { document.execCommand('copy'); showToast('คัดลอกบันทึกข้อความแล้ว'); } catch (e) { showToast('ไม่สามารถคัดลอกได้', true); }
+      try { document.execCommand('copy'); showToast(successMsg); } catch (e) { showToast('ไม่สามารถคัดลอกได้', true); }
       document.body.removeChild(ta);
     }
 
@@ -2030,27 +3085,57 @@
 
       // Mode buttons
       document.querySelectorAll('.mode-btn').forEach(btn => {
-        btn.addEventListener('click', () => { ui.recordMode = btn.dataset.mode; clearErrors(); renderRecordTab(); if (window.lucide) lucide.createIcons(); });
+        btn.addEventListener('click', () => {
+          ui.recordMode = btn.dataset.mode;
+          clearErrors();
+          document.getElementById('rec-species-search').value = '';
+          renderRecordTab();
+          if (window.lucide) lucide.createIcons();
+        });
       });
 
       // Date & Direction
       document.getElementById('rec-date').addEventListener('change', () => renderRecordTab());
-      document.getElementById('mov-direction').addEventListener('change', () => renderRecordTab());
+      document.getElementById('mov-direction').addEventListener('change', () => {
+        document.getElementById('rec-species-search').value = '';
+        renderRecordTab();
+      });
       document.getElementById('mov-category').addEventListener('change', () => updateDynamicRulesAndFifo());
 
       // Tank filters & search
       document.querySelectorAll('.tfilter-btn').forEach(btn => {
-        btn.addEventListener('click', () => { ui.tankFilter = btn.dataset.tfilter; renderTankGrid(); });
+        btn.addEventListener('click', () => {
+          ui.tankFilter = btn.dataset.tfilter;
+          if (renderTankGrid(true)) {
+            if (ui.recordMode === 'transfer') renderDestTankSelect();
+            renderSpeciesDropdown({ resetSelection: true });
+            updateDynamicRulesAndFifo();
+            flashSpeciesSelect();
+          }
+        });
       });
-      document.getElementById('tank-search').addEventListener('input', () => renderTankGrid());
+      document.getElementById('tank-search').addEventListener('input', () => {
+        if (renderTankGrid(true)) {
+          if (ui.recordMode === 'transfer') renderDestTankSelect();
+          renderSpeciesDropdown({ resetSelection: true });
+          updateDynamicRulesAndFifo();
+          flashSpeciesSelect();
+        }
+      });
       document.getElementById('tank-grid').addEventListener('click', e => {
         const tile = e.target.closest('.tank-tile');
         if (!tile) return;
-        ui.selectedTankId = tile.dataset.tank;
-        renderTankGrid();
+        const nextTankId = String(tile.dataset.tank || '').trim();
+        if (!nextTankId) return;
+        ui.selectedTankId = nextTankId;
+        clearErrors();
+        document.getElementById('rec-qty').value = 1;
+        document.getElementById('rec-species-search').value = '';
+        renderTankGrid(false);
         if (ui.recordMode === 'transfer') renderDestTankSelect();
-        renderSpeciesDropdown();
+        renderSpeciesDropdown({ resetSelection: true });
         updateDynamicRulesAndFifo();
+        flashSpeciesSelect();
       });
 
       // Species search & select
@@ -2227,6 +3312,34 @@
       document.getElementById('log-month-filter').addEventListener('change', () => { renderLogsTab(); if (window.lucide) lucide.createIcons(); });
       document.getElementById('log-search').addEventListener('input', () => { renderLogsTab(); if (window.lucide) lucide.createIcons(); });
 
+      // Monthly Mortality Summary Tab
+      document.getElementById('mort-month-select').addEventListener('change', () => { renderMortalityTab(); if (window.lucide) lucide.createIcons(); });
+      document.querySelectorAll('.mortfilter-btn').forEach(btn => {
+        btn.addEventListener('click', () => { ui.mortFilter = btn.dataset.mortfilter; renderMortalityTab(); if (window.lucide) lucide.createIcons(); });
+      });
+      document.getElementById('mort-search').addEventListener('input', () => { renderMortalityTab(); if (window.lucide) lucide.createIcons(); });
+      document.getElementById('mort-sort').addEventListener('change', e => { ui.mortSort = e.target.value; renderMortalityTab(); if (window.lucide) lucide.createIcons(); });
+      document.getElementById('mort-empty-jump').addEventListener('click', e => {
+        const btn = e.target.closest('[data-mort-jump-month]');
+        if (!btn) return;
+        document.getElementById('mort-month-select').value = btn.dataset.mortJumpMonth;
+        renderMortalityTab();
+        if (window.lucide) lucide.createIcons();
+      });
+      document.getElementById('btn-copy-mort-table').addEventListener('click', () => {
+        const ym = document.getElementById('mort-month-select').value;
+        const summary = computeMonthlyMortalitySummary(ym, ui.mortFilter, document.getElementById('mort-search').value, ui.mortSort);
+        if (summary.speciesRows.length === 0) { showToast('ไม่มีข้อมูลตารางสำหรับคัดลอก', true); return; }
+        copyText(buildMortalityTableTsv(summary), 'คัดลอกตารางสรุปการตายแล้ว');
+      });
+      document.getElementById('btn-export-mort-csv').addEventListener('click', () => {
+        const ym = document.getElementById('mort-month-select').value;
+        const summary = computeMonthlyMortalitySummary(ym, ui.mortFilter, document.getElementById('mort-search').value, ui.mortSort);
+        if (summary.speciesRows.length === 0) { showToast('ไม่มีข้อมูลสำหรับส่งออก CSV', true); return; }
+        exportMortalityCsv(summary);
+      });
+      document.getElementById('btn-print-mort').addEventListener('click', () => window.print());
+
       // Report & Lock Month
       document.getElementById('report-month-select').addEventListener('change', () => renderReportTab());
       document.getElementById('btn-lock-month').addEventListener('click', () => {
@@ -2298,6 +3411,76 @@
           });
         }
       });
+      document.getElementById('new-species-name').addEventListener('input', updateNewSpeciesDupHint);
+      document.getElementById('new-species-unit').addEventListener('change', e => {
+        if (e.target.value === 'PER_KG') {
+          document.getElementById('new-species-large').checked = true;
+        }
+      });
+      document.getElementById('btn-add-species').addEventListener('click', () => {
+        const nameInput = document.getElementById('new-species-name');
+        const name = nameInput.value.trim();
+        const waterType = document.getElementById('new-species-water').value;
+        const pricingUnit = document.getElementById('new-species-unit').value;
+        const refPrice = Math.max(0, parseFloat(document.getElementById('new-species-price').value) || 0);
+        const requireWeight = document.getElementById('new-species-large').checked || pricingUnit === 'PER_KG';
+        if (!name) { showToast('กรุณากรอกชื่อชนิดสัตว์น้ำ', true); return; }
+
+        const normTarget = normalizeSpeciesName(name);
+        const dup = state.species.find(s => normalizeSpeciesName(s.species_name_th) === normTarget);
+        if (dup) {
+          showToast(`มีชนิดสัตว์น้ำ "${dup.species_name_th}" อยู่ในบัญชีแล้ว (${dup.species_id})`, true);
+          return;
+        }
+
+        let maxN = 0;
+        state.species.forEach(s => {
+          const m = String(s.species_id || '').match(/^SPX(\d+)$/i);
+          if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+        });
+        const newId = `SPX${String(maxN + 1).padStart(3, '0')}`;
+        const today = getTodayIso();
+
+        state.species.push({
+          species_id: newId,
+          species_name_th: name,
+          water_type: waterType,
+          pricing_unit: pricingUnit,
+          reference_price: refPrice,
+          price_updated_at: today,
+          is_active: true
+        });
+        if (requireWeight && !state.largeSpeciesIds.includes(newId)) {
+          state.largeSpeciesIds.push(newId);
+        }
+        saveState();
+
+        nameInput.value = '';
+        document.getElementById('new-species-price').value = '0';
+        document.getElementById('new-species-large').checked = false;
+        updateNewSpeciesDupHint();
+        renderCustomSpeciesList();
+        renderAll();
+
+        postToCloud('addSpecies', {
+          species_name_th: name,
+          water_type: waterType,
+          pricing_unit: pricingUnit,
+          reference_price: refPrice,
+          require_weight_on_death: requireWeight
+        }).then(r => {
+          if (r.ok) {
+            const addedId = r.data && r.data.species_id ? r.data.species_id : newId;
+            showToast(`เพิ่มชนิดสัตว์น้ำ "${name}" (${addedId}) ลงชีตแล้ว`);
+            syncFromCloud(true);
+          } else if (r.serverError) {
+            showToast('ชีตปฏิเสธ: ' + r.serverError, true);
+            syncFromCloud(true);
+          } else {
+            showToast(`เพิ่มชนิดสัตว์น้ำ "${name}" (${newId}) ในเครื่องแล้ว (ออฟไลน์)`);
+          }
+        });
+      });
       document.getElementById('btn-export-json').addEventListener('click', () => {
         downloadFile('waghor_aqualog_backup.json', JSON.stringify(state, null, 2), 'application/json;charset=utf-8');
         showToast('ดาวน์โหลดไฟล์ JSON สำรองข้อมูลแล้ว');
@@ -2305,7 +3488,20 @@
       document.getElementById('btn-export-csv').addEventListener('click', () => {
         const header = 'death_id,death_date,tank_id,species_id,species_name,disposal_type,qty,symptom,size_cm,weight_g,total_loss_value,recorded_by\n';
         const body = state.mortalityLogs.map(m =>
-          [m.death_id, m.death_date, m.tank_id, m.species_id, `"${escapeHtml(m.species_name_snapshot)}"`, m.disposal_type, m.qty, `"${escapeHtml(m.symptom)}"`, m.size_cm, m.weight_g, m.total_loss_value, m.recorded_by].join(',')
+          [
+            csvSafeCell(m.death_id),
+            csvSafeCell(m.death_date),
+            csvSafeCell(m.tank_id),
+            csvSafeCell(m.species_id),
+            csvSafeCell(m.species_name_snapshot),
+            csvSafeCell(m.disposal_type),
+            m.qty,
+            csvSafeCell(m.symptom),
+            m.size_cm,
+            m.weight_g,
+            m.total_loss_value,
+            csvSafeCell(m.recorded_by)
+          ].join(',')
         ).join('\n');
         downloadFile('waghor_mortality_logs.csv', '\uFEFF' + header + body, 'text/csv;charset=utf-8');
         showToast('ส่งออกไฟล์ CSV รายการซากแล้ว');
@@ -2332,6 +3528,352 @@
         ui.confirmCallback = null;
         if (cb) cb();
       });
+
+      // === Stock Card & Lifecycle History ===
+      function daysBetweenIso(d1, d2) {
+        if (!d1 || !d2) return 0;
+        const t1 = Date.parse(d1), t2 = Date.parse(d2);
+        if (isNaN(t1) || isNaN(t2)) return 0;
+        return Math.max(0, Math.round((t2 - t1) / 86400000));
+      }
+      function formatDurationThai(days) {
+        if (days < 30) return `${days} วัน`;
+        const m = Math.floor(days / 30);
+        const rem = days % 30;
+        return rem > 0 ? `${m} เดือน ${rem} วัน (${days} วัน)` : `${m} เดือน (${days} วัน)`;
+      }
+
+      let lastStockCardRows = [];
+
+      function buildStockCard(tankId, speciesId) {
+        const events = [];
+        const matchTank = (tid) => tankId === 'ALL' || tid === tankId;
+
+        // 1. Opening lots (ยกมา) that are not duplicated in Movement_Logs
+        const matchLots = state.lots.filter(l => matchTank(l.tank_id) && l.species_id === speciesId);
+        const movInKeys = new Set(
+          state.movementLogs
+            .filter(m => (m.direction === 'IN' || m.direction === 'HEALTH_RETURN') && matchTank(m.to_tank_id) && m.species_id === speciesId)
+            .map(m => `${m.move_date}_${m.to_tank_id}_${m.qty}`)
+        );
+
+        matchLots.forEach(l => {
+          const key = `${l.received_date}_${l.tank_id}_${l.qty_initial}`;
+          if (l.source_type === 'ยกมา' || !movInKeys.has(key)) {
+            events.push({
+              date: l.received_date,
+              order: 1,
+              inQty: l.qty_initial,
+              outQty: 0,
+              deadQty: 0,
+              note: `${l.source_type} (${l.lot_id}${tankId === 'ALL' ? ' • ตู้ ' + l.tank_id : ''})`,
+              price: l.unit_cost > 0 ? `${fmtNum(l.unit_cost)}${l.pricing_unit === 'PER_KG' ? '/กก.' : ''}` : '-'
+            });
+          }
+        });
+
+        // 2. Movement logs
+        state.movementLogs.forEach(m => {
+          if (m.species_id !== speciesId || m.transfer_status === 'REJECTED') return;
+          const cleanNote = String(m.note || '').split(' | LOTS:')[0].trim();
+          const pTxt = m.unit_cost > 0 ? `${fmtNum(m.unit_cost)}${m.pricing_unit === 'PER_KG' ? '/กก.' : ''}` : '-';
+          if ((m.direction === 'IN' || m.direction === 'HEALTH_RETURN') && matchTank(m.to_tank_id)) {
+            events.push({ date: m.move_date, order: 2, inQty: m.qty, outQty: 0, deadQty: 0, note: `รับเข้า (${m.category})${cleanNote ? ' • ' + cleanNote : ''}`, price: pTxt });
+          } else if ((m.direction === 'OUT' || m.direction === 'HEALTH_OUT') && matchTank(m.from_tank_id)) {
+            events.push({ date: m.move_date, order: 3, inQty: 0, outQty: m.qty, deadQty: 0, note: `ย้ายออก (${m.category})${cleanNote ? ' • ' + cleanNote : ''}`, price: pTxt });
+          } else if (m.direction === 'TRANSFER') {
+            if (matchTank(m.from_tank_id) && tankId !== 'ALL') {
+              events.push({ date: m.move_date, order: 3, inQty: 0, outQty: m.qty, deadQty: 0, note: `ย้ายไปตู้ ${m.to_tank_id} (${m.transfer_status})`, price: pTxt });
+            }
+            if (matchTank(m.to_tank_id) && m.transfer_status === 'COMPLETED' && tankId !== 'ALL') {
+              events.push({ date: m.received_at || m.move_date, order: 2, inQty: m.qty, outQty: 0, deadQty: 0, note: `รับย้ายมาจากตู้ ${m.from_tank_id}`, price: pTxt });
+            }
+          }
+        });
+
+        // 3. Mortality logs
+        let deadTotal = 0, lossTotal = 0, lastDeathDate = '';
+        state.mortalityLogs.forEach(m => {
+          if (m.species_id !== speciesId || !matchTank(m.tank_id)) return;
+          deadTotal += m.qty;
+          lossTotal += Number(m.total_loss_value || 0);
+          if (!lastDeathDate || m.death_date > lastDeathDate) lastDeathDate = m.death_date;
+          events.push({
+            date: m.death_date,
+            order: 4,
+            inQty: 0,
+            outQty: 0,
+            deadQty: m.qty,
+            note: `ตาย (${m.disposal_type}) • อาการ: ${m.symptom}${m.weight_g ? ' • ' + fmtNum(m.weight_g) + ' ก.' : ''}${tankId === 'ALL' ? ' • ตู้ ' + m.tank_id : ''}`,
+            price: m.total_loss_value > 0 ? fmtMoney(m.total_loss_value) : '0'
+          });
+        });
+
+        events.sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order);
+
+        let running = 0;
+        const rows = events.map(ev => {
+          const prev = running;
+          running = Math.max(0, prev + ev.inQty - ev.outQty - ev.deadQty);
+          return { ...ev, prev, remain: running };
+        });
+
+        const currentQty = matchLots.filter(l => l.status === 'ACTIVE').reduce((s, l) => s + l.qty_remaining, 0);
+        const firstDate = matchLots.length
+          ? matchLots.map(l => l.received_date).sort()[0]
+          : (rows.length ? rows[0].date : '');
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const endDate = currentQty > 0 ? todayStr : (lastDeathDate || todayStr);
+        const lifespanDays = firstDate ? daysBetweenIso(firstDate, endDate) : 0;
+
+        return { rows, matchLots, currentQty, deadTotal, lossTotal, firstDate, lifespanDays, lastDeathDate };
+      }
+
+      function populateStockCardSelectors(tankId, speciesId) {
+        const tankSel = document.getElementById('sc-tank-select');
+        const tanks = state.tanks.filter(t => t.tank_type === 'DISPLAY' && t.is_active);
+        const defaultTid = (tankId && tankId !== 'ALL') ? tankId : (ui.selectedTankId || (tanks[0] ? tanks[0].tank_id : 'ALL'));
+        tankSel.innerHTML = tanks.map(t => `<option value="${escapeHtml(t.tank_id)}">ตู้ ${escapeHtml(t.tank_id)} (${escapeHtml(t.water_type)})</option>`).join('') +
+          `<option value="ALL">ทุกตู้จัดแสดง (รวมทั้งพิพิธภัณฑ์)</option>`;
+        tankSel.value = tankId === 'ALL' ? 'ALL' : defaultTid;
+
+        const spSel = document.getElementById('sc-species-select');
+        const tid = tankSel.value;
+        const spIdsInTank = new Set();
+        state.lots.filter(l => tid === 'ALL' || l.tank_id === tid).forEach(l => spIdsInTank.add(l.species_id));
+        state.mortalityLogs.filter(m => tid === 'ALL' || m.tank_id === tid).forEach(m => spIdsInTank.add(m.species_id));
+        state.movementLogs.filter(m => tid === 'ALL' || m.from_tank_id === tid || m.to_tank_id === tid).forEach(m => spIdsInTank.add(m.species_id));
+
+        const spList = state.species.filter(s => spIdsInTank.has(s.species_id));
+        if (spList.length === 0) {
+          spSel.innerHTML = `<option value="">-- ยังไม่มีประวัติสัตว์น้ำในตู้นี้ --</option>`;
+        } else {
+          spSel.innerHTML = spList.map(s => {
+            const rem = state.lots.filter(l => (tid === 'ALL' || l.tank_id === tid) && l.species_id === s.species_id && l.qty_remaining > 0).reduce((a, b) => a + b.qty_remaining, 0);
+            return `<option value="${escapeHtml(s.species_id)}">${escapeHtml(s.species_name_th)} (${escapeHtml(s.species_id)}) — ${rem > 0 ? 'คงเหลือ ' + fmtNum(rem) + ' ตัว' : 'หมดแล้ว/ตายหมด'}</option>`;
+          }).join('');
+        }
+        if (speciesId && Array.from(spSel.options).some(o => o.value === speciesId)) {
+          spSel.value = speciesId;
+        }
+      }
+
+      const THAI_SHORT_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+      function fmtThaiDate(iso) {
+        if (!iso) return '-';
+        const p = String(iso).split('-');
+        if (p.length !== 3) return iso;
+        const y = (parseInt(p[0], 10) + 543) % 100;
+        const m = THAI_SHORT_MONTHS[parseInt(p[1], 10) - 1] || p[1];
+        const d = parseInt(p[2], 10);
+        return `${d} ${m} ${y}`;
+      }
+
+      function renderStockCardModal() {
+        const tankId = document.getElementById('sc-tank-select').value;
+        const spId = document.getElementById('sc-species-select').value;
+        const sp = getSpecies(spId);
+        const tbody = document.getElementById('sc-table-body');
+        const intakeEl = document.getElementById('sc-intake-list');
+        const deathEl = document.getElementById('sc-death-list');
+
+        if (!spId || !sp) {
+          lastStockCardRows = [];
+          document.getElementById('sc-table-title').textContent = 'ประวัติสัตว์น้ำ';
+          document.getElementById('sc-first-in').textContent = '-';
+          document.getElementById('sc-lifespan').textContent = '-';
+          document.getElementById('sc-current-qty').textContent = '0 ตัว';
+          document.getElementById('sc-dead-summary').textContent = '0 ตัว';
+          document.getElementById('sc-last-death').textContent = '-';
+          document.getElementById('sc-in-count').textContent = '';
+          document.getElementById('sc-death-count').textContent = '';
+          intakeEl.innerHTML = `<p class="text-xs text-slate-400 py-2">กรุณาเลือกชนิดสัตว์น้ำ</p>`;
+          deathEl.innerHTML = `<p class="text-xs text-slate-400 py-2">กรุณาเลือกชนิดสัตว์น้ำ</p>`;
+          tbody.innerHTML = '';
+          return;
+        }
+
+        const res = buildStockCard(tankId, spId);
+        lastStockCardRows = res.rows;
+
+        document.getElementById('sc-table-title').textContent = `${tankId === 'ALL' ? 'ทุกตู้' : 'ตู้ ' + tankId} • ${sp.species_name_th}`;
+        document.getElementById('sc-first-in').textContent = fmtThaiDate(res.firstDate);
+        document.getElementById('sc-lifespan').textContent = res.firstDate ? `เลี้ยงมา ${formatDurationThai(res.lifespanDays)}` : '-';
+        document.getElementById('sc-current-qty').textContent = `${fmtNum(res.currentQty)} ตัว`;
+        document.getElementById('sc-dead-summary').textContent = `${fmtNum(res.deadTotal)} ตัว`;
+        document.getElementById('sc-last-death').textContent = res.lastDeathDate ? `ล่าสุด ${fmtThaiDate(res.lastDeathDate)}` : 'ยังไม่เคยตาย';
+
+        // Block 1: Simple Intake list (newest first)
+        const intakes = res.rows.filter(r => r.inQty > 0).slice().reverse();
+        const totalIn = intakes.reduce((s, r) => s + r.inQty, 0);
+        document.getElementById('sc-in-count').textContent = intakes.length ? `รวม ${fmtNum(totalIn)} ตัว (${intakes.length} ครั้ง)` : 'ยังไม่มีข้อมูล';
+        intakeEl.innerHTML = intakes.length === 0
+          ? `<div class="rounded-xl bg-slate-50 border border-dashed border-slate-200 px-3 py-3 text-xs text-slate-400 text-center">ยังไม่มีประวัติรับเข้า</div>`
+          : intakes.map(r => `
+              <div class="rounded-xl bg-emerald-50/60 border border-emerald-200/80 px-3.5 py-2.5 flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-900 tabular-nums">${fmtThaiDate(r.date)}</div>
+                  <div class="text-xs text-slate-600 truncate">${escapeHtml(r.note)}</div>
+                </div>
+                <span class="px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold tabular-nums shrink-0">+${fmtNum(r.inQty)} ตัว</span>
+              </div>`).join('');
+
+        // Block 2: Simple Death list (newest first)
+        const deaths = res.rows.filter(r => r.deadQty > 0).slice().reverse();
+        document.getElementById('sc-death-count').textContent = deaths.length ? `รวม ${fmtNum(res.deadTotal)} ตัว (${deaths.length} ครั้ง)` : 'ยังไม่เคยตาย';
+        deathEl.innerHTML = deaths.length === 0
+          ? `<div class="rounded-xl bg-slate-50 border border-dashed border-slate-200 px-3 py-3 text-xs text-slate-400 text-center">ยังไม่เคยมีประวัติการตายในตู้นี้</div>`
+          : deaths.map(r => `
+              <div class="rounded-xl bg-rose-50/60 border border-rose-200/80 px-3.5 py-2.5 flex items-center justify-between gap-2">
+                <div class="min-w-0">
+                  <div class="text-sm font-bold text-slate-900 tabular-nums">${fmtThaiDate(r.date)}</div>
+                  <div class="text-xs text-slate-600 truncate">${escapeHtml(r.note.replace(/^ตาย\s*/, ''))}</div>
+                </div>
+                <span class="px-2.5 py-1 rounded-lg bg-rose-600 text-white text-xs font-bold tabular-nums shrink-0">-${fmtNum(r.deadQty)} ตัว</span>
+              </div>`).join('');
+
+        // Collapsible full Stock Card table
+        tbody.innerHTML = res.rows.length === 0
+          ? `<tr><td colspan="7" class="py-4 text-center text-slate-400">ไม่มีรายการ</td></tr>`
+          : res.rows.map(r => `
+              <tr>
+                <td class="py-1.5 px-2 whitespace-nowrap">${fmtThaiDate(r.date)}</td>
+                <td class="py-1.5 px-2 text-right">${fmtNum(r.prev)}</td>
+                <td class="py-1.5 px-2 text-right font-semibold text-emerald-700">${r.inQty ? '+' + fmtNum(r.inQty) : ''}</td>
+                <td class="py-1.5 px-2 text-right font-semibold text-amber-700">${r.outQty ? '-' + fmtNum(r.outQty) : ''}</td>
+                <td class="py-1.5 px-2 text-right font-semibold text-rose-700">${r.deadQty ? '-' + fmtNum(r.deadQty) : ''}</td>
+                <td class="py-1.5 px-2 text-right font-bold text-navy-900">${fmtNum(r.remain)}</td>
+                <td class="py-1.5 px-2">${escapeHtml(r.note)}</td>
+              </tr>`).join('');
+
+        if (window.lucide) lucide.createIcons();
+      }
+
+      function openStockCard(tankId, speciesId) {
+        populateStockCardSelectors(tankId || 'ALL', speciesId || '');
+        renderStockCardModal();
+        document.getElementById('modal-stockcard').classList.remove('hidden');
+      }
+
+      document.getElementById('btn-open-stockcard').addEventListener('click', () => openStockCard(ui.selectedTankId || 'A1', ''));
+      document.getElementById('btn-rec-open-history').addEventListener('click', () => {
+        const spId = document.getElementById('rec-species').value;
+        if (ui.selectedTankId && spId) openStockCard(ui.selectedTankId, spId);
+      });
+      document.getElementById('btn-close-stockcard').addEventListener('click', () => document.getElementById('modal-stockcard').classList.add('hidden'));
+      document.getElementById('sc-tank-select').addEventListener('change', e => {
+        populateStockCardSelectors(e.target.value, '');
+        renderStockCardModal();
+      });
+      document.getElementById('sc-species-select').addEventListener('change', () => renderStockCardModal());
+      document.getElementById('inventory-tank-list').addEventListener('click', e => {
+        const hBtn = e.target.closest('[data-open-history-sp]');
+        if (hBtn) {
+          e.stopPropagation();
+          openStockCard(hBtn.dataset.openHistoryTank, hBtn.dataset.openHistorySp);
+        }
+      });
+      document.getElementById('btn-copy-stockcard').addEventListener('click', () => {
+        const title = document.getElementById('sc-table-title').textContent;
+        const header = 'วันที่\tเดิม\tเพิ่ม\tย้ายออก\tตาย\tคงเหลือ\tที่มา/หมายเหตุ\tราคา/หน่วย';
+        const lines = lastStockCardRows.map(r => [r.date, r.prev, r.inQty || '', r.outQty || '', r.deadQty || '', r.remain, r.note, r.price].join('\t'));
+        copyText([title, header, ...lines].join('\n'));
+      });
+      document.getElementById('btn-csv-stockcard').addEventListener('click', () => {
+        const header = 'วันที่,เดิม,เพิ่ม,ย้ายออก,ตาย,คงเหลือ,ที่มา/หมายเหตุ,ราคา/หน่วย\n';
+        const body = lastStockCardRows.map(r => [r.date, r.prev, r.inQty || 0, r.outQty || 0, r.deadQty || 0, r.remain, `\"${String(r.note).replace(/\"/g,'\"\"')}\"`, `\"${r.price}\"`].join(',')).join('\n');
+        downloadFile('waghor_stockcard.csv', '﻿' + header + body, 'text/csv;charset=utf-8');
+        showToast('ส่งออกไฟล์ CSV บัตรประวัติสัตว์น้ำแล้ว');
+      });
+
+      document.getElementById('btn-sync-central').addEventListener('click', () => {
+        postToCloud('syncCentralSpecies', {}).then(r => {
+          if (r.ok) {
+            showToast(`ซิงก์ชื่อและราคาจากชีตกลางเรียบร้อย (${(r.data && r.data.synced_rows) || 135} ชนิด)`);
+            syncFromCloud(true);
+          } else if (r.serverError) {
+            showToast('ซิงก์ชีตกลางไม่สำเร็จ: ' + r.serverError, true);
+          } else {
+            showToast('ไม่สามารถเชื่อมต่อ Apps Script ได้ (โหมดออฟไลน์)', true);
+          }
+        });
+      });
+
+            // Item 1: Lot Picker change -> refresh live FIFO preview
+      document.getElementById('rec-lot-select').addEventListener('change', () => updateDynamicRulesAndFifo());
+
+      // Item 2 (Mode A): Warranty toggle -> default +7 days
+      document.getElementById('intake-has-warranty').addEventListener('change', e => {
+        const wrap = document.getElementById('wrap-warranty-date');
+        wrap.classList.toggle('hidden', !e.target.checked);
+        if (e.target.checked && !document.getElementById('intake-warranty-until').value) {
+          const base = document.getElementById('rec-date').value || '2026-11-25';
+          const dt = new Date(base + 'T00:00:00');
+          dt.setDate(dt.getDate() + 7);
+          document.getElementById('intake-warranty-until').value = dt.toISOString().slice(0, 10);
+        }
+      });
+
+      // Item 3: Quick-Add Species Modal right on Intake screen
+      function openQuickSpeciesModal() {
+        const tank = getTank(ui.selectedTankId);
+        document.getElementById('qsp-name').value = '';
+        document.getElementById('qsp-water').value = (tank && tank.water_type) ? tank.water_type : 'น้ำเค็ม';
+        document.getElementById('qsp-unit').value = 'PER_UNIT';
+        document.getElementById('qsp-price').value = '0';
+        document.getElementById('qsp-large').checked = false;
+        document.getElementById('qsp-dup-warn').classList.add('hidden');
+        document.getElementById('modal-quick-species').classList.remove('hidden');
+      }
+      document.getElementById('btn-quick-add-species').addEventListener('click', openQuickSpeciesModal);
+      document.getElementById('btn-close-quick-sp').addEventListener('click', () => document.getElementById('modal-quick-species').classList.add('hidden'));
+      document.getElementById('btn-cancel-quick-sp').addEventListener('click', () => document.getElementById('modal-quick-species').classList.add('hidden'));
+      document.getElementById('qsp-name').addEventListener('input', e => {
+        const raw = e.target.value.trim();
+        const warnEl = document.getElementById('qsp-dup-warn');
+        if (!raw) { warnEl.classList.add('hidden'); return; }
+        const norm = raw.replace(/\s+/g, '').replace(/กระพง/g, 'กะพง').replace(/กระรัง/g, 'กะรัง').toLowerCase();
+        const matches = state.species.filter(s => {
+          const sn = s.species_name_th.replace(/\s+/g, '').replace(/กระพง/g, 'กะพง').replace(/กระรัง/g, 'กะรัง').toLowerCase();
+          return sn === norm || sn.includes(norm) || norm.includes(sn);
+        }).slice(0, 4);
+        if (matches.length) {
+          warnEl.innerHTML = '<b>พบชื่อใกล้เคียงในบัญชีแล้ว:</b> ' + matches.map(m => `${escapeHtml(m.species_name_th)} (${escapeHtml(m.species_id)})`).join(', ');
+          warnEl.classList.remove('hidden');
+        } else {
+          warnEl.classList.add('hidden');
+        }
+      });
+      document.getElementById('btn-save-quick-sp').addEventListener('click', () => {
+        const name = document.getElementById('qsp-name').value.trim();
+        const water = document.getElementById('qsp-water').value;
+        const unit = document.getElementById('qsp-unit').value;
+        const price = Math.max(0, Number(document.getElementById('qsp-price').value) || 0);
+        const isLarge = document.getElementById('qsp-large').checked || unit === 'PER_KG';
+        if (!name) { showToast('กรุณากรอกชื่อสัตว์น้ำ', true); return; }
+        if (state.species.some(s => s.species_name_th.trim() === name && s.water_type === water)) {
+          showToast('มีชื่อสัตว์น้ำนี้อยู่ในระบบแล้ว', true);
+          return;
+        }
+        const spxCount = state.species.filter(s => s.species_id.startsWith('SPX')).length;
+        const newId = 'SPX' + String(spxCount + 1).padStart(3, '0');
+        state.species.push({ species_id: newId, species_name_th: name, water_type: water, pricing_unit: unit, reference_price: price, price_updated_at: new Date().toISOString().slice(0,10), is_active: true });
+        if (isLarge && !state.largeSpeciesIds.includes(newId)) state.largeSpeciesIds.push(newId);
+        saveState();
+        document.getElementById('modal-quick-species').classList.add('hidden');
+        document.getElementById('rec-species-search').value = '';
+        renderSpeciesDropdown();
+        document.getElementById('rec-species').value = newId;
+        updateDynamicRulesAndFifo();
+        postToCloud('addSpecies', { species_name_th: name, water_type: water, pricing_unit: unit, reference_price: price, require_weight_on_death: isLarge }).then(r => {
+          if (r.ok) { showToast(`เพิ่มชนิดใหม่ "${name}" ลงชีตแล้วและเลือกให้ทันที`); syncFromCloud(true); }
+          else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); }
+          else { showToast(`เพิ่มชนิดใหม่ "${name}" (${newId}) ในเครื่องแล้ว`); }
+        });
+      });
+
+      // Item 4: Tank tab month selector
+      document.getElementById('inv-month-select').addEventListener('change', () => { renderTanksTab(); if (window.lucide) lucide.createIcons(); });
 
       document.getElementById('btn-sync-now').addEventListener('click', () => syncFromCloud(false));
       document.getElementById('btn-save-api-url').addEventListener('click', () => {
