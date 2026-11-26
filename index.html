@@ -652,6 +652,9 @@
           <button id="btn-copy-memo" type="button" class="tap-target px-4 py-2 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-semibold text-sm flex items-center gap-1.5 transition">
             <i data-lucide="copy" class="w-4 h-4"></i> คัดลอกบันทึกข้อความ
           </button>
+          <button id="btn-export-memo-doc" type="button" class="tap-target px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-sm flex items-center gap-1.5 transition">
+            <i data-lucide="file-down" class="w-4 h-4"></i> ส่งออก Word (.doc)
+          </button>
           <button id="btn-print-memo" type="button" class="tap-target px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-sm flex items-center gap-1.5 transition">
             <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์
           </button>
@@ -3199,19 +3202,179 @@
       showToast(`ส่งออกไฟล์ CSV สรุปการตาย ${toThaiMonthLabel(summary.ym)} แล้ว`);
     }
 
-    function buildMemoText(ym, data) {
+    function buildMemoComparisonText(ym, data) {
       const mLabel = toThaiMonthLabel(ym);
       const prev = ym === '2026-11' ? state.monthlySnapshots.find(s => s.period_ym === '2026-10' && s.water_type === 'รวม') : null;
-      let compLine = `เดือน${mLabel} มีสัตว์น้ำตายจำนวนทั้งสิ้น ${fmtNum(data.all.qty_dead_total)} ตัว คิดเป็นร้อยละ ${data.all.mortality_rate_pct.toFixed(2)} ของสัตว์น้ำทั้งหมด และยอดเงินของสัตว์น้ำที่ตายเป็นเงินทั้งสิ้น ${fmtMoney(data.all.total_loss_baht)} บาท`;
-      if (prev) {
-        const diffQty = data.all.qty_dead_total - prev.qty_dead_total;
-        const diffBaht = data.all.total_loss_baht - prev.total_loss_baht;
-        const qWord = diffQty <= 0 ? `ลดลงจากเดือนตุลาคม จำนวน ${fmtNum(Math.abs(diffQty))} ตัว` : `เพิ่มขึ้นจากเดือนตุลาคม จำนวน ${fmtNum(diffQty)} ตัว`;
-        const bWord = diffBaht <= 0 ? `ลดลงจากเดือนตุลาคม เป็นเงิน ${fmtMoney(Math.abs(diffBaht))} บาท` : `เพิ่มขึ้นจากเดือนตุลาคม เป็นเงิน ${fmtMoney(diffBaht)} บาท`;
-        compLine = `เดือน${mLabel} มีสัตว์น้ำตายจำนวนทั้งสิ้น ${fmtNum(data.all.qty_dead_total)} ตัว คิดเป็นร้อยละ ${data.all.mortality_rate_pct.toFixed(2)} ของสัตว์น้ำทั้งหมด มีอัตราการตาย${qWord} และยอดเงินของสัตว์น้ำที่ตายเป็นเงินทั้งสิ้น ${fmtMoney(data.all.total_loss_baht)} บาท ${bWord}`;
+      if (!prev) {
+        return `เดือน${mLabel} มีสัตว์น้ำตายจำนวนทั้งสิ้น ${fmtNum(data.all.qty_dead_total)} ตัว คิดเป็นร้อยละ ${data.all.mortality_rate_pct.toFixed(2)} ของสัตว์น้ำทั้งหมด และยอดเงินของสัตว์น้ำที่ตายเป็นเงินทั้งสิ้น ${fmtMoney(data.all.total_loss_baht)} บาท`;
       }
+      const diffQty = data.all.qty_dead_total - prev.qty_dead_total;
+      const diffBaht = data.all.total_loss_baht - prev.total_loss_baht;
+      const qWord = diffQty <= 0 ? `ลดลงจากเดือนตุลาคม จำนวน ${fmtNum(Math.abs(diffQty))} ตัว` : `เพิ่มขึ้นจากเดือนตุลาคม จำนวน ${fmtNum(diffQty)} ตัว`;
+      const bWord = diffBaht <= 0 ? `ลดลงจากเดือนตุลาคม เป็นเงิน ${fmtMoney(Math.abs(diffBaht))} บาท` : `เพิ่มขึ้นจากเดือนตุลาคม เป็นเงิน ${fmtMoney(diffBaht)} บาท`;
+      return `เดือน${mLabel} มีสัตว์น้ำตายจำนวนทั้งสิ้น ${fmtNum(data.all.qty_dead_total)} ตัว คิดเป็นร้อยละ ${data.all.mortality_rate_pct.toFixed(2)} ของสัตว์น้ำทั้งหมด มีอัตราการตาย${qWord} และยอดเงินของสัตว์น้ำที่ตายเป็นเงินทั้งสิ้น ${fmtMoney(data.all.total_loss_baht)} บาท ${bWord}`;
+    }
+
+    function buildMemoText(ym, data) {
+      const mLabel = toThaiMonthLabel(ym);
+      const compLine = buildMemoComparisonText(ym, data);
       const staff = getStaff(state.activeStaffId) || state.staff[0];
       return `บันทึกข้อความ\nส่วนราชการ กลุ่มพิพิธภัณฑ์สัตว์น้ำ อุทยานวิทยาศาสตร์พระจอมเกล้า ณ หว้ากอ จังหวัดประจวบคีรีขันธ์\nเรื่อง สรุปรายงานผลการปฏิบัติงานจัดหาและจัดแสดง ประจำเดือน ${mLabel}\nเรียน หัวหน้ากลุ่มพิพิธภัณฑ์สัตว์น้ำ\n\n1. สัตว์น้ำจืดในตู้จัดแสดงทั้งหมด: เดิม ${data.fw.species_start} ชนิด ${fmtNum(data.fw.qty_start)} ตัว | เพิ่ม ${fmtNum(data.fw.qty_in)} | ส่งออก ${fmtNum(data.fw.qty_out)} | ตาย ${fmtNum(data.fw.qty_dead_total)} ตัว (เก็บ ${fmtNum(data.fw.qty_dead_kept)} / ไม่เก็บ ${fmtNum(data.fw.qty_dead_unkept)}) | คงเหลือ ${data.fw.species_end} ชนิด ${fmtNum(data.fw.qty_end)} ตัว (${data.fw.mortality_rate_pct.toFixed(2)}%) มูลค่าซาก ${fmtMoney(data.fw.total_loss_baht)} บาท\n2. สัตว์น้ำเค็มในตู้จัดแสดงทั้งหมด: เดิม ${data.sw.species_start} ชนิด ${fmtNum(data.sw.qty_start)} ตัว | เพิ่ม ${fmtNum(data.sw.qty_in)} | ส่งออก ${fmtNum(data.sw.qty_out)} | ตาย ${fmtNum(data.sw.qty_dead_total)} ตัว (เก็บ ${fmtNum(data.sw.qty_dead_kept)} / ไม่เก็บ ${fmtNum(data.sw.qty_dead_unkept)}) | คงเหลือ ${data.sw.species_end} ชนิด ${fmtNum(data.sw.qty_end)} ตัว (${data.sw.mortality_rate_pct.toFixed(2)}%) มูลค่าซาก ${fmtMoney(data.sw.total_loss_baht)} บาท\nรวมทั้งหมด: คงเหลือ ${data.all.species_end} ชนิด ${fmtNum(data.all.qty_end)} ตัว | ตายรวม ${fmtNum(data.all.qty_dead_total)} ตัว (${data.all.mortality_rate_pct.toFixed(2)}%) | รวมมูลค่าซาก ${fmtMoney(data.all.total_loss_baht)} บาท\n\n${compLine}\n\nในการนี้ งานจัดหาและจัดแสดง ได้เก็บซากสัตว์น้ำที่ตายไว้ในตู้แช่ห้องเตรียมอาหาร เพื่อรอทำลายซากต่อไป\nจึงเรียนมาเพื่อโปรดพิจารณา\n(${staff ? staff.full_name : 'นายยุทธพงษ์ พรหมน้อย'})\nตำแหน่ง ${staff ? staff.position : 'นักวิชาการศึกษา'}`;
+    }
+
+    function exportMemoDoc(ym) {
+      const data = computeMonthlyData(ym);
+      const mLabel = toThaiMonthLabel(ym);
+      const [ymYear, ymMonth] = String(ym || '').split('-').map(Number);
+      const nextDate = (ymYear && ymMonth) ? new Date(ymYear, ymMonth, 1) : new Date();
+      const nextYm = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+      const docYear = nextDate.getFullYear() + 543;
+      const dateLabel = toThaiMonthLabel(nextYm);
+      const compText = buildMemoComparisonText(ym, data);
+      const staff = getStaff(state.activeStaffId) || state.staff[0];
+      const staffName = escapeHtml(staff ? staff.full_name : 'นายยุทธพงษ์ พรหมน้อย');
+      const staffPos = escapeHtml(staff ? staff.position : 'นักวิชาการศึกษา');
+
+      const docHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>บันทึกข้อความ ${escapeHtml(mLabel)}</title>
+<style>
+  @page { size: A4; margin: 2cm 2cm 2cm 2.5cm; }
+  body { font-family: 'TH Sarabun New', 'TH SarabunPSK', 'Sarabun', sans-serif; font-size: 16pt; line-height: 1.3; color: #000000; }
+  p { margin: 0 0 6pt 0; }
+  .title { text-align: center; font-size: 22pt; font-weight: bold; margin-bottom: 10pt; }
+  .indent { text-indent: 2.5cm; text-align: justify; }
+  table.meta { width: 100%; border-collapse: collapse; margin-bottom: 8pt; }
+  table.meta td { padding: 1pt 0; vertical-align: top; }
+  table.data { width: 100%; border-collapse: collapse; margin: 8pt 0; font-size: 13.5pt; }
+  table.data th, table.data td { border: 1px solid #000000; padding: 3pt 4pt; }
+  table.data th { background-color: #e2e8f0; text-align: center; font-weight: bold; }
+  table.price { width: 70%; margin: 6pt auto 10pt auto; border-collapse: collapse; font-size: 15pt; }
+  table.price td { padding: 2pt 4pt; }
+  table.sign { width: 100%; border-collapse: collapse; margin-top: 24pt; }
+</style>
+</head>
+<body>
+  <div class="title">บันทึกข้อความ</div>
+  <table class="meta">
+    <tr><td colspan="2"><b>ส่วนราชการ</b> กลุ่มพิพิธภัณฑ์สัตว์น้ำ อุทยานวิทยาศาสตร์พระจอมเกล้า ณ หว้ากอ จังหวัดประจวบคีรีขันธ์</td></tr>
+    <tr>
+      <td style="width:50%;"><b>ที่</b> กพ ......................./${docYear}</td>
+      <td style="width:50%;"><b>วันที่</b> ........ ${escapeHtml(dateLabel)}</td>
+    </tr>
+    <tr><td colspan="2"><b>เรื่อง</b> สรุปรายงานผลการปฏิบัติงานจัดหาและจัดแสดง ประจำเดือน ${escapeHtml(mLabel)}</td></tr>
+    <tr><td colspan="2" style="padding-top:4pt;"><b>เรียน</b> หัวหน้ากลุ่มพิพิธภัณฑ์สัตว์น้ำ</td></tr>
+  </table>
+
+  <p class="indent">ตามที่มอบหมายให้งานจัดหาและจัดแสดง กลุ่มพิพิธภัณฑ์สัตว์น้ำ ปฏิบัติหน้าที่ดูแล รักษาและอนุบาลสัตว์น้ำในตู้จัดแสดง ตู้อนุบาล ตลอดจนจัดเก็บซากสัตว์น้ำที่ตายและส่งทำลายนั้น งานจัดหาและจัดแสดง ได้จัดทำประวัติสัตว์น้ำที่มีอยู่ในตู้แสดงทั้งหมด เพื่อรายงานผลการปฏิบัติงานดังกล่าว และนำไปใช้เป็นข้อมูลในการวางแผนการจัดหาและจัดแสดงต่อไป โดยมีรายละเอียดดังนี้</p>
+
+  <table class="data">
+    <thead>
+      <tr>
+        <th rowspan="2" style="width:24pt;">ที่</th>
+        <th rowspan="2">รายการ</th>
+        <th colspan="2">จำนวนเดิม</th>
+        <th>เพิ่ม</th>
+        <th>ส่งออก</th>
+        <th>เก็บซาก</th>
+        <th>ไม่เก็บซาก</th>
+        <th>รวมตาย</th>
+        <th colspan="2">คงเหลือ</th>
+        <th rowspan="2">ร้อยละ<br><span style="font-size:11pt;font-weight:normal;">(การตายของจำนวนสัตว์น้ำ)</span></th>
+      </tr>
+      <tr>
+        <th>ชนิด</th><th>(ตัว)</th><th>(ตัว)</th><th>(ตัว)</th><th>(ตัว)</th><th>(ตัว)</th><th>(ตัว)</th><th>ชนิด</th><th>(ตัว)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="text-align:center;">1</td>
+        <td>สัตว์น้ำจืดในตู้จัดแสดงทั้งหมด</td>
+        <td style="text-align:center;">${fmtNum(data.fw.species_start)}</td>
+        <td style="text-align:right;">${fmtNum(data.fw.qty_start)}</td>
+        <td style="text-align:right;">${fmtNum(data.fw.qty_in)}</td>
+        <td style="text-align:right;">${fmtNum(data.fw.qty_out)}</td>
+        <td style="text-align:right;">${fmtNum(data.fw.qty_dead_kept)}</td>
+        <td style="text-align:right;">${fmtNum(data.fw.qty_dead_unkept)}</td>
+        <td style="text-align:right;">${fmtNum(data.fw.qty_dead_total)}</td>
+        <td style="text-align:center;">${fmtNum(data.fw.species_end)}</td>
+        <td style="text-align:right;">${fmtNum(data.fw.qty_end)}</td>
+        <td style="text-align:right;">${data.fw.mortality_rate_pct.toFixed(2)}</td>
+      </tr>
+      <tr>
+        <td style="text-align:center;">2</td>
+        <td>สัตว์น้ำเค็มในตู้จัดแสดงทั้งหมด</td>
+        <td style="text-align:center;">${fmtNum(data.sw.species_start)}</td>
+        <td style="text-align:right;">${fmtNum(data.sw.qty_start)}</td>
+        <td style="text-align:right;">${fmtNum(data.sw.qty_in)}</td>
+        <td style="text-align:right;">${fmtNum(data.sw.qty_out)}</td>
+        <td style="text-align:right;">${fmtNum(data.sw.qty_dead_kept)}</td>
+        <td style="text-align:right;">${fmtNum(data.sw.qty_dead_unkept)}</td>
+        <td style="text-align:right;">${fmtNum(data.sw.qty_dead_total)}</td>
+        <td style="text-align:center;">${fmtNum(data.sw.species_end)}</td>
+        <td style="text-align:right;">${fmtNum(data.sw.qty_end)}</td>
+        <td style="text-align:right;">${data.sw.mortality_rate_pct.toFixed(2)}</td>
+      </tr>
+      <tr style="background-color:#e2e8f0;font-weight:bold;">
+        <td colspan="2" style="text-align:center;">รวม</td>
+        <td style="text-align:center;">${fmtNum(data.all.species_start)}</td>
+        <td style="text-align:right;">${fmtNum(data.all.qty_start)}</td>
+        <td style="text-align:right;">${fmtNum(data.all.qty_in)}</td>
+        <td style="text-align:right;">${fmtNum(data.all.qty_out)}</td>
+        <td style="text-align:right;">${fmtNum(data.all.qty_dead_kept)}</td>
+        <td style="text-align:right;">${fmtNum(data.all.qty_dead_unkept)}</td>
+        <td style="text-align:right;">${fmtNum(data.all.qty_dead_total)}</td>
+        <td style="text-align:center;">${fmtNum(data.all.species_end)}</td>
+        <td style="text-align:right;">${fmtNum(data.all.qty_end)}</td>
+        <td style="text-align:right;">${data.all.mortality_rate_pct.toFixed(2)}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="price">
+    <tr>
+      <td>ราคาซากสัตว์น้ำจืด</td>
+      <td style="text-align:right;font-weight:bold;">${fmtNum(data.fw.qty_dead_total)}</td>
+      <td>ตัว</td>
+      <td style="text-align:right;">เป็นเงิน</td>
+      <td style="text-align:right;font-weight:bold;">${fmtMoney(data.fw.total_loss_baht)} บาท</td>
+    </tr>
+    <tr>
+      <td>ราคาซากสัตว์น้ำเค็ม</td>
+      <td style="text-align:right;font-weight:bold;">${fmtNum(data.sw.qty_dead_total)}</td>
+      <td>ตัว</td>
+      <td style="text-align:right;">เป็นเงิน</td>
+      <td style="text-align:right;font-weight:bold;">${fmtMoney(data.sw.total_loss_baht)} บาท</td>
+    </tr>
+    <tr style="font-weight:bold;border-top:1px solid #000000;">
+      <td>สัตว์น้ำตาย จำนวน</td>
+      <td style="text-align:right;">${fmtNum(data.all.qty_dead_total)}</td>
+      <td>ตัว</td>
+      <td style="text-align:right;">รวม</td>
+      <td style="text-align:right;">${fmtMoney(data.all.total_loss_baht)} บาท</td>
+    </tr>
+  </table>
+
+  <p class="indent">${escapeHtml(compText)}</p>
+  <p class="indent">ในการนี้ งานจัดหาและจัดแสดง ได้เก็บซากสัตว์น้ำที่ตายไว้ในตู้แช่ห้องเตรียมอาหาร เพื่อรอทำลายซากต่อไป</p>
+  <p class="indent">จึงเรียนมาเพื่อโปรดพิจารณา</p>
+
+  <table class="sign">
+    <tr>
+      <td style="width:50%;"></td>
+      <td style="width:50%;text-align:center;">
+        <p>(${staffName})</p>
+        <p>พนักงานราชการ</p>
+        <p>ตำแหน่ง ${staffPos}</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+      downloadFile(`บันทึกข้อความ_สรุปสัตว์น้ำ_${ym}.doc`, '\uFEFF' + docHtml, 'application/msword;charset=utf-8');
+      showToast(`ส่งออกไฟล์ Word บันทึกข้อความ ${mLabel} แล้ว`);
     }
 
     function renderReportTab() {
@@ -3326,16 +3489,7 @@
           <span class="col-span-2 text-right">${fmtMoney(data.all.total_loss_baht)} บาท</span>
         </div>`;
 
-      const prev = ym === '2026-11' ? state.monthlySnapshots.find(s => s.period_ym === '2026-10' && s.water_type === 'รวม') : null;
-      let compText = `เดือน${mLabel} มีสัตว์น้ำตายจำนวนทั้งสิ้น ${fmtNum(data.all.qty_dead_total)} ตัว คิดเป็นร้อยละ ${data.all.mortality_rate_pct.toFixed(2)} ของสัตว์น้ำทั้งหมด และยอดเงินของสัตว์น้ำที่ตายเป็นเงินทั้งสิ้น ${fmtMoney(data.all.total_loss_baht)} บาท`;
-      if (prev) {
-        const diffQty = data.all.qty_dead_total - prev.qty_dead_total;
-        const diffBaht = data.all.total_loss_baht - prev.total_loss_baht;
-        const qWord = diffQty <= 0 ? `ลดลงจากเดือนตุลาคม จำนวน ${fmtNum(Math.abs(diffQty))} ตัว` : `เพิ่มขึ้นจากเดือนตุลาคม จำนวน ${fmtNum(diffQty)} ตัว`;
-        const bWord = diffBaht <= 0 ? `ลดลงจากเดือนตุลาคม เป็นเงิน ${fmtMoney(Math.abs(diffBaht))} บาท` : `เพิ่มขึ้นจากเดือนตุลาคม เป็นเงิน ${fmtMoney(diffBaht)} บาท`;
-        compText = `เดือน${mLabel} มีสัตว์น้ำตายจำนวนทั้งสิ้น ${fmtNum(data.all.qty_dead_total)} ตัว คิดเป็นร้อยละ ${data.all.mortality_rate_pct.toFixed(2)} ของสัตว์น้ำทั้งหมด มีอัตราการตาย${qWord} และยอดเงินของสัตว์น้ำที่ตายเป็นเงินทั้งสิ้น ${fmtMoney(data.all.total_loss_baht)} บาท ${bWord}`;
-      }
-      document.getElementById('memo-comparison-para').textContent = compText;
+      document.getElementById('memo-comparison-para').textContent = buildMemoComparisonText(ym, data);
       const staff = getStaff(state.activeStaffId) || state.staff[0];
       document.getElementById('memo-signer-name').textContent = staff ? staff.full_name : 'นายยุทธพงษ์ พรหมน้อย';
       document.getElementById('memo-signer-pos').textContent = staff ? staff.position : 'นักวิชาการศึกษา';
@@ -3847,6 +4001,10 @@ const THAI_SHORT_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','�
       document.getElementById('btn-copy-memo').addEventListener('click', () => {
         const ym = document.getElementById('report-month-select').value;
         copyText(buildMemoText(ym, computeMonthlyData(ym)));
+      });
+      document.getElementById('btn-export-memo-doc').addEventListener('click', () => {
+        const ym = document.getElementById('report-month-select').value;
+        exportMemoDoc(ym);
       });
       document.getElementById('btn-print-memo').addEventListener('click', () => window.print());
 
