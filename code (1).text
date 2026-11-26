@@ -71,52 +71,80 @@ function doPost(e) {
     const raw = (e && e.postData && e.postData.contents) ? e.postData.contents : '{}';
     const payload = JSON.parse(raw);
     const action = payload.action;
-    let result;
+    const clientTxId = String(payload.client_tx_id || '').trim();
+    const cacheKey = clientTxId ? ('tx_' + clientTxId.slice(0, 180)) : '';
 
-    switch (action) {
-      case 'recordDeath':
-        result = recordDeath(payload);
-        break;
-      case 'recordMovement':
-        result = recordMovement(payload);
-        break;
-      case 'createTransfer':
-        result = createTransfer(payload);
-        break;
-      case 'confirmTransfer':
-        result = confirmTransfer(payload.move_id, payload.received_by);
-        break;
-      case 'rejectTransfer':
-        result = rejectTransfer(payload.move_id, payload.received_by);
-        break;
-      case 'lockMonth':
-        result = lockMonth(payload.period_ym, payload.locked_by);
-        break;
-      case 'addStaff':
-        result = addStaff(payload);
-        break;
-      case 'addSpecies':
-        result = addSpecies(payload);
-        break;
-      case 'assignTankOwner':
-        result = assignTankOwner(payload.tank_id, payload.owner_staff_id);
-        break;
-      case 'editMortalityDetails':
-        result = editMortalityDetails(payload);
-        break;
-      case 'cancelMortality':
-        result = cancelMortality(payload.death_id, payload.cancelled_by);
-        break;
-      case 'cancelMovement':
-        result = cancelMovement(payload.move_id, payload.cancelled_by);
-        break;
-      case 'syncCentralSpecies':
-        result = syncCentralSpecies();
-        break;
-      default:
-        throw new Error('ไม่รองรับคำสั่ง: ' + action);
-    }
-    return jsonResponse_({ ok: true, data: result });
+    return withLock_(() => {
+      if (cacheKey) {
+        try {
+          const cached = CacheService.getScriptCache().get(cacheKey);
+          if (cached) {
+            return ContentService
+              .createTextOutput(cached)
+              .setMimeType(ContentService.MimeType.JSON);
+          }
+        } catch (cacheErr) {}
+      }
+
+      let result;
+      switch (action) {
+        case 'recordDeath':
+          result = recordDeath(payload);
+          break;
+        case 'recordMovement':
+          result = recordMovement(payload);
+          break;
+        case 'createTransfer':
+          result = createTransfer(payload);
+          break;
+        case 'confirmTransfer':
+          result = confirmTransfer(payload.move_id, payload.received_by);
+          break;
+        case 'rejectTransfer':
+          result = rejectTransfer(payload.move_id, payload.received_by);
+          break;
+        case 'lockMonth':
+          result = lockMonth(payload.period_ym, payload.locked_by);
+          break;
+        case 'addStaff':
+          result = addStaff(payload);
+          break;
+        case 'addSpecies':
+          result = addSpecies(payload);
+          break;
+        case 'assignTankOwner':
+          result = assignTankOwner(payload.tank_id, payload.owner_staff_id);
+          break;
+        case 'editMortalityDetails':
+          result = editMortalityDetails(payload);
+          break;
+        case 'updateLot':
+          result = updateLot(payload);
+          break;
+        case 'cancelMortality':
+          result = cancelMortality(payload.death_id, payload.cancelled_by);
+          break;
+        case 'cancelMovement':
+          result = cancelMovement(payload.move_id, payload.cancelled_by);
+          break;
+        case 'syncCentralSpecies':
+          result = syncCentralSpecies();
+          break;
+        default:
+          throw new Error('ไม่รองรับคำสั่ง: ' + action);
+      }
+
+      const responseObj = { ok: true, data: result };
+      const serialized = JSON.stringify(responseObj);
+      if (cacheKey) {
+        try {
+          CacheService.getScriptCache().put(cacheKey, serialized, 21600);
+        } catch (cacheErr) {}
+      }
+      return ContentService
+        .createTextOutput(serialized)
+        .setMimeType(ContentService.MimeType.JSON);
+    });
   } catch (err) {
     return jsonResponse_({ ok: false, error: err.message });
   }
@@ -172,7 +200,8 @@ function getBootstrapData() {
     unit_cost: Number(r.unit_cost || 0),
     qty_initial: Number(r.qty_initial || 0),
     qty_remaining: Number(r.qty_remaining || 0),
-    status: String(r.status || 'ACTIVE').trim().toUpperCase()
+    status: String(r.status || 'ACTIVE').trim().toUpperCase(),
+    warranty_until: formatDateCell_(r.warranty_until)
   }));
 
   const movementLogs = readObjects_(ss.getSheetByName(CONFIG.SHEETS.MOVEMENTS)).map(r => ({
@@ -282,12 +311,14 @@ function recordDeath(payload) {
       throw new Error('สัตว์น้ำขนาดใหญ่หรือคิดราคาต่อ กก. บังคับชั่งน้ำหนัก (กรัม) ตอนตาย');
     }
 
-    const fifo = deductFifoLots_(ss, tankId, speciesId, qty, weightG);
+    const targetLotId = String(payload.target_lot_id || '').trim();
+    const fifo = deductFifoLots_(ss, tankId, speciesId, qty, weightG, targetLotId, deathDate);
 
     const shMort = ss.getSheetByName(CONFIG.SHEETS.MORTALITY);
-    const deathId = makeId_('DTH', deathDate, shMort.getLastRow());
+    const deathId = makeId_('DTH', deathDate, shMort, 'death_id');
     const unitCostApplied = fifo.breakdown.length ? fifo.breakdown[0].unit_cost : 0;
-    const noteBase = sourceNote || (fifo.breakdown.length ? fifo.breakdown[0].source_type : '');
+    const warrantyPrefix = fifo.hasWarranty ? '[ตายในประกัน - เคลมร้าน] ' : '';
+    const noteBase = warrantyPrefix + (sourceNote || (fifo.breakdown.length ? fifo.breakdown[0].source_type : ''));
     const noteText = noteBase + ' | LOTS:' + JSON.stringify(fifo.breakdown);
 
     shMort.appendRow([
@@ -336,28 +367,44 @@ function recordMovement(payload) {
     const waterType = tank ? tank.water_type : sp.water_type;
 
     const shMove = ss.getSheetByName(CONFIG.SHEETS.MOVEMENTS);
-    const moveId = makeId_('MOV', moveDate, shMove.getLastRow());
+    const moveId = makeId_('MOV', moveDate, shMove, 'move_id');
     const isIntake = (direction === 'IN' || direction === 'HEALTH_RETURN');
 
     if (isIntake) {
       const pricingUnit = String(payload.pricing_unit || sp.pricing_unit || 'PER_UNIT');
       const unitCost = Math.max(0, Number(payload.unit_cost || 0));
+      const warrantyUntil = String(payload.warranty_until || '').trim();
       const shLots = ss.getSheetByName(CONFIG.SHEETS.LOTS);
-      const lotId = makeId_('LOT', moveDate, shLots.getLastRow());
-
-      shLots.appendRow([
-        lotId, tankId, speciesId, sp.species_name_th, waterType,
-        moveDate, category || 'รับเข้า', pricingUnit, unitCost, qty, qty, 'ACTIVE'
-      ]);
+      const lotId = makeId_('LOT', moveDate, shLots, 'lot_id');
+      const lotHeaders = shLots.getLastRow() >= 1
+        ? shLots.getRange(1, 1, 1, shLots.getLastColumn()).getValues()[0].map(h => String(h).trim())
+        : [];
+      const lotMap = {
+        lot_id: lotId, tank_id: tankId, species_id: speciesId,
+        species_name_snapshot: sp.species_name_th, water_type: waterType,
+        received_date: moveDate, source_type: category || 'รับเข้า',
+        pricing_unit: pricingUnit, unit_cost: unitCost,
+        qty_initial: qty, qty_remaining: qty, status: 'ACTIVE',
+        warranty_until: warrantyUntil
+      };
+      if (lotHeaders.length >= 12) {
+        shLots.appendRow(lotHeaders.map(h => Object.prototype.hasOwnProperty.call(lotMap, h) ? lotMap[h] : ''));
+      } else {
+        shLots.appendRow([
+          lotId, tankId, speciesId, sp.species_name_th, waterType,
+          moveDate, category || 'รับเข้า', pricingUnit, unitCost, qty, qty, 'ACTIVE', warrantyUntil
+        ]);
+      }
 
       shMove.appendRow([
         moveId, moveDate, direction, category, '', tankId, speciesId, sp.species_name_th,
         qty, pricingUnit, unitCost, 'COMPLETED', createdBy, createdBy, moveDate, note
       ]);
 
-      return { move_id: moveId, lot_id: lotId };
+      return { move_id: moveId, lot_id: lotId, warranty_until: warrantyUntil };
     } else {
-      const fifo = deductFifoLots_(ss, tankId, speciesId, qty, 0);
+      const targetLotId = String(payload.target_lot_id || '').trim();
+      const fifo = deductFifoLots_(ss, tankId, speciesId, qty, 0, targetLotId, '');
       const pricingUnit = fifo.breakdown.length ? fifo.breakdown[0].pricing_unit : 'PER_UNIT';
       const unitCost = fifo.breakdown.length ? fifo.breakdown[0].unit_cost : 0;
 
@@ -395,9 +442,10 @@ function createTransfer(payload) {
     const sp = findSpecies_(ss, speciesId);
     if (!sp) throw new Error('ไม่พบรหัสชนิดสัตว์น้ำ: ' + speciesId);
 
-    const fifo = deductFifoLots_(ss, fromTankId, speciesId, qty, 0);
+    const targetLotId = String(payload.target_lot_id || '').trim();
+    const fifo = deductFifoLots_(ss, fromTankId, speciesId, qty, 0, targetLotId, '');
     const shMove = ss.getSheetByName(CONFIG.SHEETS.MOVEMENTS);
-    const moveId = makeId_('TRF', moveDate, shMove.getLastRow());
+    const moveId = makeId_('TRF', moveDate, shMove, 'move_id');
     const pricingUnit = fifo.breakdown.length ? fifo.breakdown[0].pricing_unit : 'PER_UNIT';
     const unitCost = fifo.breakdown.length ? fifo.breakdown[0].unit_cost : 0;
 
@@ -441,14 +489,29 @@ function confirmTransfer(moveId, receivedBy) {
         const sp = findSpecies_(ss, speciesId);
         const waterType = destTank ? destTank.water_type : (sp ? sp.water_type : 'น้ำเค็ม');
         const shLots = ss.getSheetByName(CONFIG.SHEETS.LOTS);
+        const lotHeaders = shLots.getLastRow() >= 1
+          ? shLots.getRange(1, 1, 1, shLots.getLastColumn()).getValues()[0].map(h => String(h).trim())
+          : [];
 
         carried.forEach(item => {
-          const newLotId = makeId_('LOT', moveDate, shLots.getLastRow());
-          shLots.appendRow([
-            newLotId, toTankId, speciesId, spName, waterType,
-            item.received_date, item.source_type, item.pricing_unit, item.unit_cost,
-            item.qty_deducted, item.qty_deducted, 'ACTIVE'
-          ]);
+          const newLotId = makeId_('LOT', moveDate, shLots, 'lot_id');
+          const lotMap = {
+            lot_id: newLotId, tank_id: toTankId, species_id: speciesId,
+            species_name_snapshot: spName, water_type: waterType,
+            received_date: item.received_date, source_type: item.source_type,
+            pricing_unit: item.pricing_unit, unit_cost: item.unit_cost,
+            qty_initial: item.qty_deducted, qty_remaining: item.qty_deducted, status: 'ACTIVE',
+            warranty_until: item.warranty_until || ''
+          };
+          if (lotHeaders.length >= 12) {
+            shLots.appendRow(lotHeaders.map(h => Object.prototype.hasOwnProperty.call(lotMap, h) ? lotMap[h] : ''));
+          } else {
+            shLots.appendRow([
+              newLotId, toTankId, speciesId, spName, waterType,
+              item.received_date, item.source_type, item.pricing_unit, item.unit_cost,
+              item.qty_deducted, item.qty_deducted, 'ACTIVE', item.warranty_until || ''
+            ]);
+          }
         });
 
         const today = todayIso_();
@@ -631,6 +694,95 @@ function editMortalityDetails(payload) {
 }
 
 /**
+ * แก้ไขข้อมูลล็อต (วันรับเข้า / ราคาต่อหน่วย / แหล่งที่มา / วันหมดประกัน)
+ */
+function updateLot(payload) {
+  return withLock_(() => {
+    const ss = getSS_();
+    const lotId = String(payload.lot_id || '').trim();
+    const receivedDate = String(payload.received_date || '').trim();
+    const warrantyUntil = String(payload.warranty_until || '').trim();
+    const hasUnitCost = payload.unit_cost !== undefined && payload.unit_cost !== null && payload.unit_cost !== '';
+    const newCost = hasUnitCost ? Math.max(0, Number(payload.unit_cost)) : null;
+    const newSource = String(payload.source_type || '').trim();
+
+    if (!lotId) throw new Error('ไม่พบรหัสล็อต');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(receivedDate)) {
+      throw new Error('รูปแบบวันรับเข้าไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)');
+    }
+    if (warrantyUntil && !/^\d{4}-\d{2}-\d{2}$/.test(warrantyUntil)) {
+      throw new Error('รูปแบบวันหมดประกันไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)');
+    }
+
+    const shLots = ss.getSheetByName(CONFIG.SHEETS.LOTS);
+    const rows = shLots.getDataRange().getValues();
+    const lIdx = indexMap_(rows[0]);
+
+    for (let r = 1; r < rows.length; r++) {
+      if (String(rows[r][lIdx.lot_id]).trim() === lotId) {
+        const oldDate = formatDateCell_(rows[r][lIdx.received_date]);
+        if (oldDate) assertMonthNotLocked_(ss, oldDate);
+        assertMonthNotLocked_(ss, receivedDate);
+
+        const tankId = String(rows[r][lIdx.tank_id]).trim();
+        const speciesId = String(rows[r][lIdx.species_id]).trim();
+        const qtyInitial = Number(rows[r][lIdx.qty_initial] || 0);
+
+        shLots.getRange(r + 1, lIdx.received_date + 1).setValue(receivedDate);
+        if (newCost !== null && !isNaN(newCost) && lIdx.unit_cost != null) {
+          shLots.getRange(r + 1, lIdx.unit_cost + 1).setValue(newCost);
+        }
+        if (newSource && lIdx.source_type != null) {
+          shLots.getRange(r + 1, lIdx.source_type + 1).setValue(newSource);
+        }
+        if (lIdx.warranty_until != null) {
+          shLots.getRange(r + 1, lIdx.warranty_until + 1).setValue(warrantyUntil);
+        } else if (warrantyUntil) {
+          const nextCol = shLots.getLastColumn() + 1;
+          shLots.getRange(1, nextCol).setValue('warranty_until');
+          shLots.getRange(r + 1, nextCol).setValue(warrantyUntil);
+        }
+
+        // Sync matching intake row in Movement_Logs
+        const shMove = ss.getSheetByName(CONFIG.SHEETS.MOVEMENTS);
+        const mRows = shMove.getDataRange().getValues();
+        const mIdx = indexMap_(mRows[0]);
+        for (let mr = mRows.length - 1; mr >= 1; mr--) {
+          const dir = String(mRows[mr][mIdx.direction]).trim();
+          if (
+            (dir === 'IN' || dir === 'HEALTH_RETURN') &&
+            String(mRows[mr][mIdx.to_tank_id]).trim() === tankId &&
+            String(mRows[mr][mIdx.species_id]).trim() === speciesId &&
+            formatDateCell_(mRows[mr][mIdx.move_date]) === oldDate &&
+            Number(mRows[mr][mIdx.qty] || 0) === qtyInitial
+          ) {
+            shMove.getRange(mr + 1, mIdx.move_date + 1).setValue(receivedDate);
+            if (mIdx.received_at != null) shMove.getRange(mr + 1, mIdx.received_at + 1).setValue(receivedDate);
+            if (newCost !== null && !isNaN(newCost) && mIdx.unit_cost != null) {
+              shMove.getRange(mr + 1, mIdx.unit_cost + 1).setValue(newCost);
+            }
+            if (newSource && mIdx.category != null) {
+              shMove.getRange(mr + 1, mIdx.category + 1).setValue(newSource);
+            }
+            break;
+          }
+        }
+
+        return {
+          lot_id: lotId,
+          updated: true,
+          received_date: receivedDate,
+          unit_cost: newCost !== null && !isNaN(newCost) ? newCost : Number(rows[r][lIdx.unit_cost] || 0),
+          source_type: newSource || String(rows[r][lIdx.source_type] || ''),
+          warranty_until: warrantyUntil
+        };
+      }
+    }
+    throw new Error('ไม่พบล็อตรหัส: ' + lotId);
+  });
+}
+
+/**
  * ยกเลิกรายการซากและคืนสต็อกกลับล็อต FIFO เดิม (เฉพาะเดือนที่ยังไม่ล็อก)
  */
 function cancelMortality(deathId, cancelledBy) {
@@ -772,7 +924,16 @@ function addStaff(payload) {
     if (!name) throw new Error('กรุณากรอกชื่อ-สกุล');
 
     const sh = ss.getSheetByName(CONFIG.SHEETS.STAFF);
-    const id = 'STF' + String(sh.getLastRow()).padStart(3, '0');
+    const existingStaff = readObjects_(sh);
+    let maxStaffN = 0;
+    existingStaff.forEach(s => {
+      const m = String(s.staff_id || '').trim().match(/^STF(\d+)$/i);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (n > maxStaffN) maxStaffN = n;
+      }
+    });
+    const id = 'STF' + String(maxStaffN + 1).padStart(3, '0');
     sh.appendRow([id, name, pos, role, true]);
     return { staff_id: id, full_name: name, position: pos, role };
   });
@@ -942,7 +1103,7 @@ function syncCentralSpecies() {
  * 5. INTERNAL HELPERS (FIFO ENGINE, LOCKING, DATE NORMALIZATION)
  * ========================================================================== */
 
-function deductFifoLots_(ss, tankId, speciesId, qty, weightG) {
+function deductFifoLots_(ss, tankId, speciesId, qty, weightG, targetLotId, eventDate) {
   const shLots = ss.getSheetByName(CONFIG.SHEETS.LOTS);
   const rows = shLots.getDataRange().getValues();
   const idx = indexMap_(rows[0]);
@@ -950,38 +1111,47 @@ function deductFifoLots_(ss, tankId, speciesId, qty, weightG) {
   const candidates = [];
   for (let r = 1; r < rows.length; r++) {
     if (
-      String(rows[r][idx.tank_id]) === tankId &&
-      String(rows[r][idx.species_id]) === speciesId &&
-      String(rows[r][idx.status]) === 'ACTIVE' &&
+      String(rows[r][idx.tank_id]).trim() === tankId &&
+      String(rows[r][idx.species_id]).trim() === speciesId &&
+      String(rows[r][idx.status]).trim().toUpperCase() === 'ACTIVE' &&
       Number(rows[r][idx.qty_remaining]) > 0
     ) {
       candidates.push({
         rowNum: r + 1,
-        lot_id: String(rows[r][idx.lot_id]),
+        lot_id: String(rows[r][idx.lot_id]).trim(),
         received_date: formatDateCell_(rows[r][idx.received_date]),
-        source_type: String(rows[r][idx.source_type]),
-        pricing_unit: String(rows[r][idx.pricing_unit] || 'PER_UNIT'),
+        source_type: String(rows[r][idx.source_type]).trim(),
+        pricing_unit: String(rows[r][idx.pricing_unit] || 'PER_UNIT').trim(),
         unit_cost: Number(rows[r][idx.unit_cost] || 0),
+        warranty_until: idx.warranty_until != null ? formatDateCell_(rows[r][idx.warranty_until]) : '',
         qty_remaining: Number(rows[r][idx.qty_remaining])
       });
     }
   }
 
   candidates.sort((a, b) => a.received_date.localeCompare(b.received_date) || a.lot_id.localeCompare(b.lot_id));
+  if (targetLotId && targetLotId !== 'AUTO_FIFO') {
+    candidates.sort((a, b) => (a.lot_id === targetLotId ? -1 : b.lot_id === targetLotId ? 1 : 0));
+  }
 
   let need = qty;
   const breakdown = [];
   let totalCost = 0;
+  let hasWarranty = false;
 
   for (let i = 0; i < candidates.length && need > 0; i++) {
     const c = candidates[i];
     const take = Math.min(need, c.qty_remaining);
+    const underWarranty = !!(c.warranty_until && eventDate && eventDate <= c.warranty_until);
+    if (underWarranty) hasWarranty = true;
     let cost = 0;
-    if (c.pricing_unit === 'PER_KG') {
-      const kg = (Number(weightG) || 0) / 1000;
-      cost = Math.round(kg * (take / qty) * c.unit_cost * 100) / 100;
-    } else {
-      cost = take * c.unit_cost;
+    if (!underWarranty) {
+      if (c.pricing_unit === 'PER_KG') {
+        const kg = (Number(weightG) || 0) / 1000;
+        cost = Math.round(kg * (take / qty) * c.unit_cost * 100) / 100;
+      } else {
+        cost = take * c.unit_cost;
+      }
     }
     breakdown.push({
       rowNum: c.rowNum,
@@ -990,6 +1160,8 @@ function deductFifoLots_(ss, tankId, speciesId, qty, weightG) {
       source_type: c.source_type,
       pricing_unit: c.pricing_unit,
       unit_cost: c.unit_cost,
+      warranty_until: c.warranty_until,
+      under_warranty: underWarranty,
       qty_deducted: take,
       new_remaining: c.qty_remaining - take,
       cost: cost
@@ -1011,12 +1183,15 @@ function deductFifoLots_(ss, tankId, speciesId, qty, weightG) {
 
   return {
     totalCost: Math.round(totalCost * 100) / 100,
+    hasWarranty: hasWarranty,
     breakdown: breakdown.map(b => ({
       lot_id: b.lot_id,
       received_date: b.received_date,
       source_type: b.source_type,
       pricing_unit: b.pricing_unit,
       unit_cost: b.unit_cost,
+      warranty_until: b.warranty_until,
+      under_warranty: b.under_warranty,
       qty_deducted: b.qty_deducted,
       cost: b.cost
     }))
@@ -1035,12 +1210,18 @@ function assertMonthNotLocked_(ss, dateStr) {
   }
 }
 
+let _lockDepth = 0;
 function withLock_(fn) {
+  if (_lockDepth > 0) {
+    return fn();
+  }
   const lock = LockService.getScriptLock();
   lock.waitLock(15000);
+  _lockDepth++;
   try {
     return fn();
   } finally {
+    _lockDepth--;
     lock.releaseLock();
   }
 }
@@ -1136,9 +1317,32 @@ function toIsoYM_(ymStr) {
   return y + '-' + parts[1];
 }
 
-function makeId_(prefix, isoDate, seq) {
+function nextSeqForPrefix_(sheet, idHeader, idPrefix) {
+  if (!sheet || sheet.getLastRow() < 2) return 1;
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0].map(h => String(h).trim());
+  let col = idHeader ? headers.indexOf(idHeader) : -1;
+  if (col === -1) col = 0;
+  let maxSeq = 0;
+  for (let r = 1; r < rows.length; r++) {
+    const val = String(rows[r][col] || '').trim();
+    if (idPrefix && val.indexOf(idPrefix) !== 0) continue;
+    const m = val.match(/-(\d+)$/);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n > maxSeq) maxSeq = n;
+    }
+  }
+  return maxSeq + 1;
+}
+
+function makeId_(prefix, isoDate, seqOrSheet, idHeader) {
   const ym = toBuddhistYM_(isoDate).replace('-', '');
-  return prefix + '-' + ym + '-' + String(seq).padStart(3, '0');
+  const fullPrefix = prefix + '-' + ym + '-';
+  const seq = (typeof seqOrSheet === 'number')
+    ? seqOrSheet
+    : nextSeqForPrefix_(seqOrSheet, idHeader || '', fullPrefix);
+  return fullPrefix + String(seq).padStart(3, '0');
 }
 
 function jsonResponse_(obj) {
