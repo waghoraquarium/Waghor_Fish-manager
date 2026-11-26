@@ -285,10 +285,10 @@
           <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
             <label id="tank-picker-label" class="text-sm font-semibold text-slate-700">เลือกตู้จัดแสดง <span class="text-rose-500">*</span></label>
             <div class="flex items-center gap-1">
-              <button type="button" data-tfilter="ALL" class="tfilter-btn px-2.5 py-1 rounded-md text-xs font-medium bg-navy-900 text-white">ทั้งหมด</button>
+              <button type="button" data-tfilter="ALL" class="tfilter-btn px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-600">ทั้งหมด</button>
               <button type="button" data-tfilter="น้ำจืด" class="tfilter-btn px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-600">น้ำจืด</button>
               <button type="button" data-tfilter="น้ำเค็ม" class="tfilter-btn px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-600">น้ำเค็ม</button>
-              <button type="button" data-tfilter="MINE" class="tfilter-btn px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-600">ตู้ของฉัน</button>
+              <button type="button" data-tfilter="MINE" class="tfilter-btn px-2.5 py-1 rounded-md text-xs font-medium bg-navy-900 text-white">ตู้ของฉัน</button>
             </div>
           </div>
           <input id="tank-search" type="text" placeholder="พิมพ์ค้นหาตู้ เช่น A1, หญ้าทะเล, ปะการัง, BIGTANK..." class="tap-target w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm mb-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500" />
@@ -1181,7 +1181,7 @@
     }
 
     let syncState = { online: false, syncing: false, lastSync: '' };
-    let syncRequestSeq = 0;
+    let lastAutoSyncAt = Date.now();
 
     function getTodayIso() {
       try {
@@ -1270,6 +1270,30 @@
 
     const PENDING_QUEUE_KEY = 'waghor_aqualog_pending_v1';
     let inFlightPosts = 0;
+    let flushingQueue = false;
+    let activeSyncCount = 0;
+    let activeFlushPromise = null;
+    let activeFlushSilent = true;
+    let activeSyncPromise = null;
+    let activeSyncSilent = true;
+    let writeMutationEpoch = 0;
+    const activePostPromises = new Set();
+    const activePostQueueIds = new Set();
+
+    function refreshSyncingState() {
+      syncState.syncing = (inFlightPosts > 0 || flushingQueue || activeSyncCount > 0);
+      updateSyncUI();
+    }
+
+    async function waitForInFlightPosts() {
+      while (activePostPromises.size > 0) {
+        await Promise.allSettled(Array.from(activePostPromises));
+      }
+    }
+
+    function generateClientTxId() {
+      return 'TX-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    }
 
     function loadPendingQueue() {
       try {
@@ -1282,14 +1306,28 @@
       try { localStorage.setItem(PENDING_QUEUE_KEY, JSON.stringify(q || [])); } catch (e) {}
       updatePendingQueueBanner();
     }
-    function enqueuePending(action, payload) {
+    function enqueuePending(action, payload, clientTxId) {
       const q = loadPendingQueue();
-      q.push({ id: 'Q-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), action, payload, created_at: new Date().toISOString() });
+      const txId = clientTxId || (payload && payload.client_tx_id) || generateClientTxId();
+      const entryPayload = (payload && payload.client_tx_id) ? payload : { ...(payload || {}), client_tx_id: txId };
+      const entry = {
+        id: 'Q-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+        client_tx_id: txId,
+        action,
+        payload: entryPayload,
+        created_at: new Date().toISOString()
+      };
+      q.push(entry);
       savePendingQueue(q);
-      return q.length;
+      return entry;
+    }
+    function removePendingByIds(idsToRemove) {
+      if (!idsToRemove || !idsToRemove.size) return;
+      const q = loadPendingQueue().filter(item => !idsToRemove.has(item.id));
+      savePendingQueue(q);
     }
     function updatePendingQueueBanner() {
-      const q = loadPendingQueue();
+      const q = loadPendingQueue().filter(item => !activePostQueueIds.has(item.id));
       const banner = document.getElementById('pending-queue-banner');
       const txt = document.getElementById('pending-queue-text');
       if (!banner || !txt) return;
@@ -1316,7 +1354,8 @@
           else if (action === 'assignTankOwner') runner.assignTankOwner(payload.tank_id, payload.owner_staff_id);
           else if (action === 'cancelMortality') runner.cancelMortality(payload.death_id, payload.cancelled_by);
           else if (action === 'cancelMovement') runner.cancelMovement(payload.move_id, payload.cancelled_by);
-          else runner[action](payload);
+          else if (typeof runner[action] === 'function') runner[action](payload);
+          else reject(new Error('ไม่รองรับคำสั่ง: ' + action));
         });
       } else {
         const res = await fetch(url, {
@@ -1332,107 +1371,193 @@
       return json;
     }
 
-    let flushingQueue = false;
     async function flushPendingQueue(silent) {
-      const q = loadPendingQueue();
-      if (!q.length || flushingQueue) return { flushed: 0, remaining: q.length };
-      flushingQueue = true;
-      syncState.syncing = true;
-      updateSyncUI();
-      let flushed = 0;
-      const remaining = [];
-      try {
-        for (let i = 0; i < q.length; i++) {
-          const item = q[i];
-          try {
-            const json = await sendRawCloudPost(item.action, item.payload);
-            if (json && json.ok) {
-              flushed++;
-            } else {
-              // Server explicitly rejected this item -> drop it and notify user
-              if (!silent) showToast('ชีตปฏิเสธรายการค้าง: ' + ((json && json.error) || item.action), true);
+      if (!silent) activeFlushSilent = false;
+      if (activeFlushPromise) return activeFlushPromise;
+      activeFlushSilent = Boolean(silent);
+
+      activeFlushPromise = (async () => {
+        try {
+          await waitForInFlightPosts();
+          const q = loadPendingQueue().filter(item => !activePostQueueIds.has(item.id));
+          if (!q.length) return { flushed: 0, remaining: loadPendingQueue().length, rejected: 0, lastRejectMsg: '' };
+
+          flushingQueue = true;
+          refreshSyncingState();
+          let flushed = 0;
+          const rejectedErrors = [];
+          const processedIds = new Set();
+          for (let i = 0; i < q.length; i++) {
+            const item = q[i];
+            const txPayload = (item.payload && item.payload.client_tx_id)
+              ? item.payload
+              : { ...(item.payload || {}), client_tx_id: item.client_tx_id || item.id };
+            try {
+              const json = await sendRawCloudPost(item.action, txPayload);
+              if (json && json.ok) {
+                flushed++;
+                processedIds.add(item.id);
+              } else {
+                // Server explicitly rejected this item -> remove from queue and record rejection reason
+                processedIds.add(item.id);
+                rejectedErrors.push((json && json.error) || item.action);
+              }
+            } catch (err) {
+              // Network still failing -> stop in order; un-processed items stay queued
+              break;
             }
-          } catch (err) {
-            // Network still failing -> keep this and all subsequent items in order
-            remaining.push(item, ...q.slice(i + 1));
-            break;
           }
+          removePendingByIds(processedIds);
+          const remainingCount = loadPendingQueue().filter(item => !activePostQueueIds.has(item.id)).length;
+          const lastRejectMsg = rejectedErrors.length ? rejectedErrors[rejectedErrors.length - 1] : '';
+          if (rejectedErrors.length > 0) {
+            if (flushed > 0) {
+              showToast(`ส่งข้อมูลค้างได้ ${flushed} รายการ แต่ชีตปฏิเสธ ${rejectedErrors.length} รายการ: ${lastRejectMsg}`, true);
+            } else {
+              showToast('ชีตปฏิเสธรายการค้าง: ' + lastRejectMsg, true);
+            }
+          } else if (flushed > 0 && !activeFlushSilent) {
+            showToast(`ส่งข้อมูลค้างขึ้น Google Sheets สำเร็จ ${flushed} รายการ`);
+          }
+          return { flushed, remaining: remainingCount, rejected: rejectedErrors.length, lastRejectMsg };
+        } finally {
+          flushingQueue = false;
+          activeFlushPromise = null;
+          activeFlushSilent = true;
+          refreshSyncingState();
         }
-        savePendingQueue(remaining);
-        if (flushed > 0 && !silent) {
-          showToast(`ส่งข้อมูลค้างขึ้น Google Sheets สำเร็จ ${flushed} รายการ`);
-        }
-        return { flushed, remaining: remaining.length };
-      } finally {
-        flushingQueue = false;
-        syncState.syncing = false;
-        updateSyncUI();
+      })();
+      return activeFlushPromise;
+    }
+
+    async function fetchBootstrapOnce(url) {
+      if (window.google && window.google.script && window.google.script.run) {
+        return await new Promise((resolve, reject) => {
+          window.google.script.run
+            .withSuccessHandler(data => resolve({ ok: true, data }))
+            .withFailureHandler(err => reject(err))
+            .getBootstrapData();
+        });
       }
+      const sep = url.includes('?') ? '&' : '?';
+      const res = await fetch(url + sep + 'action=getBootstrap&_t=' + Date.now(), {
+        method: 'GET',
+        redirect: 'follow',
+        cache: 'no-store',
+        credentials: 'omit'
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return await res.json();
     }
 
     async function syncFromCloud(silent) {
       const url = getApiUrl();
       if (!url) return false;
-      // CRITICAL: Flush any unsynced local queue FIRST before pulling from cloud so local entries are NEVER overwritten!
-      const qRes = await flushPendingQueue(silent);
-      if (qRes.remaining > 0) {
-        if (!silent) showToast(`ยังมีข้อมูลค้างส่ง ${qRes.remaining} รายการ — ยกเลิกการดึงทับเพื่อกันข้อมูลหาย`, true);
-        return false;
-      }
-      const reqSeq = ++syncRequestSeq;
-      syncState.syncing = true;
-      updateSyncUI();
-      try {
-        let json;
-        if (window.google && window.google.script && window.google.script.run) {
-          json = await new Promise((resolve, reject) => {
-            window.google.script.run
-              .withSuccessHandler(data => resolve({ ok: true, data }))
-              .withFailureHandler(err => reject(err))
-              .getBootstrapData();
-          });
-        } else {
-          const sep = url.includes('?') ? '&' : '?';
-          const res = await fetch(url + sep + 'action=getBootstrap&_t=' + Date.now(), { method: 'GET', redirect: 'follow', cache: 'no-store', credentials: 'omit' });
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          json = await res.json();
-        }
-        if (reqSeq !== syncRequestSeq) return false;
-        if (json && json.ok && json.data && Array.isArray(json.data.lots)) {
-          const prevStaff = state.activeStaffId || 'STF001';
-          state = normalizeState({ ...json.data, activeStaffId: prevStaff });
-          if (!state.staff.some(s => s.staff_id === state.activeStaffId) && state.staff[0]) {
-            state.activeStaffId = state.staff[0].staff_id;
+      if (!silent) activeSyncSilent = false;
+      if (activeSyncPromise) return activeSyncPromise;
+      activeSyncSilent = Boolean(silent);
+
+      activeSyncCount++;
+      refreshSyncingState();
+
+      activeSyncPromise = (async () => {
+        let totalFlushed = 0;
+        let totalRejected = 0;
+        let lastRejectMsg = '';
+        try {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            await waitForInFlightPosts();
+            // CRITICAL: Flush any unsynced local queue FIRST before pulling from cloud so local entries are NEVER overwritten!
+            const qRes = await flushPendingQueue(activeSyncSilent);
+            if (qRes) {
+              totalFlushed += (qRes.flushed || 0);
+              if (qRes.rejected > 0) {
+                totalRejected += qRes.rejected;
+                if (qRes.lastRejectMsg) lastRejectMsg = qRes.lastRejectMsg;
+              }
+            }
+            if (qRes.remaining > 0) {
+              if (!activeSyncSilent) {
+                const msg = totalRejected > 0
+                  ? `ยังมีข้อมูลค้างส่ง ${qRes.remaining} รายการ และชีตปฏิเสธ ${totalRejected} รายการ: ${lastRejectMsg} — ยกเลิกการดึงทับเพื่อกันข้อมูลหาย`
+                  : `ยังมีข้อมูลค้างส่ง ${qRes.remaining} รายการ — ยกเลิกการดึงทับเพื่อกันข้อมูลหาย`;
+                showToast(msg, true);
+              }
+              return false;
+            }
+            await waitForInFlightPosts();
+            if (loadPendingQueue().some(item => !activePostQueueIds.has(item.id))) continue;
+
+            const epochBeforeGet = writeMutationEpoch;
+            let json;
+            try {
+              json = await fetchBootstrapOnce(url);
+            } catch (firstErr) {
+              await new Promise(r => setTimeout(r, 1200));
+              json = await fetchBootstrapOnce(url);
+            }
+
+            // If a new write started while GET was in-flight, never overwrite local state with pre-commit cloud data
+            if (inFlightPosts > 0 || loadPendingQueue().length > 0 || writeMutationEpoch !== epochBeforeGet) {
+              continue;
+            }
+
+            if (json && json.ok && json.data && Array.isArray(json.data.lots)) {
+              const prevStaff = state.activeStaffId || 'STF001';
+              state = normalizeState({ ...json.data, activeStaffId: prevStaff });
+              if (!state.staff.some(s => s.staff_id === state.activeStaffId) && state.staff[0]) {
+                state.activeStaffId = state.staff[0].staff_id;
+              }
+              saveState();
+              syncState.online = true;
+              syncState.lastSync = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+              lastAutoSyncAt = Date.now();
+              renderAll();
+              if (totalRejected > 0) {
+                if (totalFlushed > 0) {
+                  showToast(`ซิงก์ข้อมูลแล้ว (ส่งค้างได้ ${totalFlushed} รายการ แต่ชีตปฏิเสธ ${totalRejected} รายการ: ${lastRejectMsg})`, true);
+                } else {
+                  showToast(`ซิงก์ข้อมูลแล้ว แต่ชีตปฏิเสธรายการค้าง${totalRejected > 1 ? ' (' + totalRejected + ' รายการ)' : ''}: ${lastRejectMsg}`, true);
+                }
+              } else if (!activeSyncSilent) {
+                showToast('ซิงก์ข้อมูลจาก Google Sheets ล่าสุดแล้ว');
+              }
+              return true;
+            }
+            throw new Error((json && json.error) || 'Invalid response');
           }
-          saveState();
-          syncState.online = true;
-          syncState.lastSync = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-          renderAll();
-          if (!silent) showToast('ซิงก์ข้อมูลจาก Google Sheets ล่าสุดแล้ว');
-          return true;
+          return false;
+        } catch (err) {
+          syncState.online = false;
+          if (!activeSyncSilent) showToast('เชื่อมต่อชีตไม่สำเร็จ (' + (err && err.message ? err.message : 'Network') + ') — ใช้ข้อมูลในเครื่องชั่วคราว' + (totalRejected > 0 ? ' (และชีตปฏิเสธรายการค้าง: ' + lastRejectMsg + ')' : ''), true);
+          return false;
+        } finally {
+          activeSyncCount = Math.max(0, activeSyncCount - 1);
+          activeSyncPromise = null;
+          activeSyncSilent = true;
+          refreshSyncingState();
         }
-        throw new Error((json && json.error) || 'Invalid response');
-      } catch (err) {
-        if (reqSeq === syncRequestSeq) syncState.online = false;
-        if (!silent) showToast('เชื่อมต่อชีตไม่สำเร็จ (' + (err && err.message ? err.message : 'Network') + ') — ใช้ข้อมูลในเครื่องชั่วคราว', true);
-        return false;
-      } finally {
-        if (reqSeq === syncRequestSeq) {
-          syncState.syncing = false;
-          updateSyncUI();
-        }
-      }
+      })();
+      return activeSyncPromise;
     }
 
     async function postToCloud(action, payload) {
+      writeMutationEpoch++;
+      const clientTxId = (payload && payload.client_tx_id) || generateClientTxId();
+      const txPayload = { ...(payload || {}), client_tx_id: clientTxId };
       const url = getApiUrl();
       if (!url) {
-        const cnt = enqueuePending(action, payload);
-        return { ok: false, offline: true, queued: cnt };
+        enqueuePending(action, txPayload, clientTxId);
+        return { ok: false, offline: true, queued: loadPendingQueue().length };
       }
+
+      // Outbox-first persistence: enqueue BEFORE sending so mid-request reload/close never loses the write
+      const entry = enqueuePending(action, txPayload, clientTxId);
+      activePostQueueIds.add(entry.id);
+      updatePendingQueueBanner();
+
       inFlightPosts++;
-      syncState.syncing = true;
-      updateSyncUI();
+      refreshSyncingState();
       const submitBtn = document.getElementById('btn-submit-record');
       const submitLbl = document.getElementById('submit-btn-label');
       const prevBtnText = submitLbl ? submitLbl.textContent : '';
@@ -1440,34 +1565,46 @@
         submitBtn.disabled = true;
         if (submitLbl) submitLbl.textContent = 'กำลังบันทึกลง Google Sheets...';
       }
-      try {
-        let json;
+
+      const workPromise = (async () => {
         try {
-          json = await sendRawCloudPost(action, payload);
-        } catch (firstErr) {
-          // Automatic 1-time retry after 1.2s for transient Apps Script cold starts / network blips
-          await new Promise(r => setTimeout(r, 1200));
-          json = await sendRawCloudPost(action, payload);
+          let json;
+          try {
+            json = await sendRawCloudPost(action, txPayload);
+          } catch (firstErr) {
+            // Automatic 1-time retry after 1.2s for transient Apps Script cold starts / network blips
+            await new Promise(r => setTimeout(r, 1200));
+            json = await sendRawCloudPost(action, txPayload);
+          }
+          if (json && json.ok) {
+            removePendingByIds(new Set([entry.id]));
+            syncState.online = true;
+            syncState.lastSync = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+            return { ok: true, data: json.data };
+          }
+          // Confirmed server business rejection -> remove outbox entry
+          removePendingByIds(new Set([entry.id]));
+          return { ok: false, serverError: (json && json.error) || 'บันทึกไม่สำเร็จ' };
+        } catch (err) {
+          // Network/transient failure -> keep entry queued in PENDING_QUEUE_KEY
+          syncState.online = false;
+          const cnt = loadPendingQueue().filter(x => !activePostQueueIds.has(x.id) || x.id === entry.id).length;
+          return { ok: false, offline: true, queued: cnt, errorMessage: err && err.message ? err.message : 'Network' };
+        } finally {
+          activePostQueueIds.delete(entry.id);
+          inFlightPosts = Math.max(0, inFlightPosts - 1);
+          if (submitBtn && ['recordDeath', 'recordMovement', 'createTransfer'].includes(action)) {
+            submitBtn.disabled = false;
+            if (submitLbl && prevBtnText) submitLbl.textContent = prevBtnText;
+          }
+          updatePendingQueueBanner();
+          refreshSyncingState();
         }
-        if (json && json.ok) {
-          syncState.online = true;
-          syncState.lastSync = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-          return { ok: true, data: json.data };
-        }
-        return { ok: false, serverError: (json && json.error) || 'บันทึกไม่สำเร็จ' };
-      } catch (err) {
-        syncState.online = false;
-        const cnt = enqueuePending(action, payload);
-        return { ok: false, offline: true, queued: cnt, errorMessage: err && err.message ? err.message : 'Network' };
-      } finally {
-        inFlightPosts = Math.max(0, inFlightPosts - 1);
-        syncState.syncing = false;
-        if (submitBtn && ['recordDeath', 'recordMovement', 'createTransfer'].includes(action)) {
-          submitBtn.disabled = false;
-          if (submitLbl && prevBtnText) submitLbl.textContent = prevBtnText;
-        }
-        updateSyncUI();
-      }
+      })();
+
+      activePostPromises.add(workPromise);
+      workPromise.finally(() => { activePostPromises.delete(workPromise); });
+      return workPromise;
     }
 
     const CATEGORIES = {
@@ -1503,8 +1640,8 @@
     let ui = {
       activeTab: 'record',
       recordMode: 'death',
-      tankFilter: 'ALL',
-      selectedTankId: 'B7',
+      tankFilter: 'MINE',
+      selectedTankId: '',
       selectedDisposal: 'เก็บซาก',
       selectedSymptom: '',
       invFilter: 'ALL',
@@ -1892,9 +2029,9 @@
       }
 
       // Render Tank Grid
-      renderTankGrid();
+      const tankChanged = renderTankGrid(true);
       if (isTrf) renderDestTankSelect();
-      renderSpeciesDropdown();
+      renderSpeciesDropdown({ resetSelection: tankChanged });
       renderDisposalAndSymptoms();
       updateDynamicRulesAndFifo();
     }
@@ -1918,6 +2055,9 @@
       let tankChanged = false;
       if (autoSelectIfHidden && tanks.length > 0 && !tanks.some(t => t.tank_id === ui.selectedTankId)) {
         ui.selectedTankId = tanks[0].tank_id;
+        tankChanged = true;
+      } else if (autoSelectIfHidden && tanks.length === 0 && ui.selectedTankId) {
+        ui.selectedTankId = '';
         tankChanged = true;
       }
 
@@ -2251,7 +2391,14 @@
           size_cm: sizeRaw ? parseFloat(sizeRaw) : '', weight_g: weightG,
           source_note: note, recorded_by: state.activeStaffId, target_lot_id: targetLotId === 'AUTO_FIFO' ? '' : targetLotId
         }).then(r => {
-          if (r.ok) { showToast(`บันทึกลงชีตแล้ว: ${sp.species_name_th} ${qty} ตัว (${fmtMoney(sim.totalCost)} บ.)`); syncFromCloud(true); }
+          if (r.ok) {
+            if (r.data && r.data.death_id) {
+              const loc = state.mortalityLogs.find(x => x.death_id === newId);
+              if (loc) { loc.death_id = r.data.death_id; saveState(); }
+            }
+            showToast(`บันทึกลงชีตแล้ว: ${sp.species_name_th} ${qty} ตัว (${fmtMoney(sim.totalCost)} บ.)`);
+            syncFromCloud(true);
+          }
           else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); syncFromCloud(true); }
           else { showToast(`ส่งลงชีตไม่สำเร็จ (${r.errorMessage || 'ออฟไลน์'}) — เก็บเข้าคิวรอส่งอัตโนมัติแล้ว (${r.queued || 1} รายการ)`, true); }
         });
@@ -2301,7 +2448,15 @@
             species_id: spId, qty, pricing_unit: pricingUnit, unit_cost: unitCost,
             note, created_by: state.activeStaffId, warranty_until: document.getElementById('intake-has-warranty').checked ? (document.getElementById('intake-warranty-until').value || '') : ''
           }).then(r => {
-            if (r.ok) { showToast(`บันทึกรับเข้าลงชีตแล้ว: ${sp.species_name_th} ${qty} ตัว`); syncFromCloud(true); }
+            if (r.ok) {
+              if (r.data) {
+                if (r.data.lot_id) { const locLot = state.lots.find(x => x.lot_id === lotId); if (locLot) locLot.lot_id = r.data.lot_id; }
+                if (r.data.move_id) { const locMov = state.movementLogs.find(x => x.move_id === moveId); if (locMov) locMov.move_id = r.data.move_id; }
+                saveState();
+              }
+              showToast(`บันทึกรับเข้าลงชีตแล้ว: ${sp.species_name_th} ${qty} ตัว`);
+              syncFromCloud(true);
+            }
             else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); syncFromCloud(true); }
             else { showToast(`ส่งรับเข้าลงชีตไม่สำเร็จ (${r.errorMessage || 'ออฟไลน์'}) — เก็บเข้าคิวรอส่งอัตโนมัติแล้ว (${r.queued || 1} รายการ)`, true); }
           });
@@ -2326,7 +2481,14 @@
             move_date: dateVal, direction: dir, category: cat, tank_id: tankId,
             species_id: spId, qty, note, created_by: state.activeStaffId, target_lot_id: targetLotId === 'AUTO_FIFO' ? '' : targetLotId
           }).then(r => {
-            if (r.ok) { showToast(`บันทึกย้ายออกลงชีตแล้ว: ${sp.species_name_th} ${qty} ตัว`); syncFromCloud(true); }
+            if (r.ok) {
+              if (r.data && r.data.move_id) {
+                const locMov = state.movementLogs.find(x => x.move_id === moveId);
+                if (locMov) { locMov.move_id = r.data.move_id; saveState(); }
+              }
+              showToast(`บันทึกย้ายออกลงชีตแล้ว: ${sp.species_name_th} ${qty} ตัว`);
+              syncFromCloud(true);
+            }
             else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); syncFromCloud(true); }
             else { showToast(`ส่งย้ายออกลงชีตไม่สำเร็จ (${r.errorMessage || 'ออฟไลน์'}) — เก็บเข้าคิวรอส่งอัตโนมัติแล้ว (${r.queued || 1} รายการ)`, true); }
           });
@@ -2364,7 +2526,14 @@
           move_date: dateVal, from_tank_id: tankId, to_tank_id: destId,
           species_id: spId, qty, note, created_by: state.activeStaffId, target_lot_id: targetLotId === 'AUTO_FIFO' ? '' : targetLotId
         }).then(r => {
-          if (r.ok) { showToast(`ส่งคำขอย้ายลงชีตแล้ว: ไปตู้ ${destId} (รอปลายทางกดรับ)`); syncFromCloud(true); }
+          if (r.ok) {
+            if (r.data && r.data.move_id) {
+              const locMov = state.movementLogs.find(x => x.move_id === moveId);
+              if (locMov) { locMov.move_id = r.data.move_id; saveState(); }
+            }
+            showToast(`ส่งคำขอย้ายลงชีตแล้ว: ไปตู้ ${destId} (รอปลายทางกดรับ)`);
+            syncFromCloud(true);
+          }
           else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); syncFromCloud(true); }
           else { showToast(`ส่งคำขอย้ายลงชีตไม่สำเร็จ (${r.errorMessage || 'ออฟไลน์'}) — เก็บเข้าคิวรอส่งอัตโนมัติแล้ว (${r.queued || 1} รายการ)`, true); }
         });
@@ -3694,6 +3863,7 @@ const THAI_SHORT_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','�
         const name = document.getElementById('new-staff-name').value.trim();
         const pos = document.getElementById('new-staff-pos').value.trim() || 'เจ้าหน้าที่ดูแลตู้';
         if (!name) { showToast('กรุณากรอกชื่อ-สกุลพนักงาน', true); return; }
+        const prevStaffId = state.activeStaffId;
         const id = `STF${String(state.staff.length + 1).padStart(3, '0')}`;
         state.staff.push({ staff_id: id, full_name: name, position: pos, role: 'STAFF', is_active: true });
         state.activeStaffId = id;
@@ -3704,7 +3874,18 @@ const THAI_SHORT_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','�
         renderAll();
         postToCloud('addStaff', { full_name: name, position: pos, role: 'STAFF' }).then(r => {
           if (r.ok) { showToast(`เพิ่มพนักงาน ${name} ลงชีตแล้ว`); syncFromCloud(true); }
-          else { showToast(`เพิ่มพนักงาน ${name} ในเครื่องแล้ว`); }
+          else if (r.serverError) {
+            state.staff = state.staff.filter(s => s.staff_id !== id);
+            if (state.activeStaffId === id && prevStaffId && state.staff.some(s => s.staff_id === prevStaffId)) {
+              state.activeStaffId = prevStaffId;
+            }
+            saveState();
+            if (!document.getElementById('modal-settings').classList.contains('hidden')) openSettingsModal();
+            renderAll();
+            showToast('ชีตปฏิเสธ: ' + r.serverError, true);
+            syncFromCloud(true);
+          }
+          else { showToast(`เพิ่มพนักงาน ${name} ในเครื่องแล้ว (${r.errorMessage || 'ออฟไลน์'})`); }
         });
       });
       document.getElementById('btn-assign-owner').addEventListener('click', () => {
@@ -3718,7 +3899,8 @@ const THAI_SHORT_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','�
           renderAll();
           postToCloud('assignTankOwner', { tank_id: tid, owner_staff_id: sid }).then(r => {
             if (r.ok) { showToast(`บันทึกเจ้าของตู้ ${tid} ลงชีตแล้ว`); syncFromCloud(true); }
-            else { showToast(`บันทึกเจ้าของตู้ ${tid} ในเครื่องแล้ว`); }
+            else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); syncFromCloud(true); }
+            else { showToast(`บันทึกเจ้าของตู้ ${tid} ในเครื่องแล้ว (${r.errorMessage || 'ออฟไลน์'})`); }
           });
         }
       });
@@ -4072,7 +4254,7 @@ const THAI_SHORT_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','�
         updateDynamicRulesAndFifo();
         postToCloud('addSpecies', { species_name_th: name, water_type: water, pricing_unit: unit, reference_price: price, require_weight_on_death: isLarge }).then(r => {
           if (r.ok) { showToast(`เพิ่มชนิดใหม่ "${name}" ลงชีตแล้วและเลือกให้ทันที`); syncFromCloud(true); }
-          else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); }
+          else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); syncFromCloud(true); }
           else { showToast(`เพิ่มชนิดใหม่ "${name}" (${newId}) ในเครื่องแล้ว`); }
         });
       });
@@ -4171,7 +4353,7 @@ const THAI_SHORT_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','�
           warranty_until: newWarranty
         }).then(r => {
           if (r.ok) { showToast('อัปเดตข้อมูลล็อตลง Google Sheets เรียบร้อยแล้ว'); syncFromCloud(true); }
-          else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); }
+          else if (r.serverError) { showToast('ชีตปฏิเสธ: ' + r.serverError, true); syncFromCloud(true); }
           else { showToast('บันทึกการแก้ไขล็อตในเครื่องแล้ว'); }
         });
       });
@@ -4191,10 +4373,9 @@ const THAI_SHORT_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','�
       syncFromCloud(true);
 
       // Auto-sync when returning to the tab / app from background (iOS Safari / PWA)
-      let lastAutoSyncAt = Date.now();
       function triggerAutoSyncIfStale() {
         const now = Date.now();
-        if (now - lastAutoSyncAt > 15000 && !syncState.syncing) {
+        if (now - lastAutoSyncAt > 15000 && !syncState.syncing && inFlightPosts === 0 && !flushingQueue && activeSyncCount === 0) {
           lastAutoSyncAt = now;
           syncFromCloud(true);
         }
