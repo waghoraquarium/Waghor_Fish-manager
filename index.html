@@ -690,9 +690,9 @@
         </div>
         <div class="text-sm space-y-1">
           <p><span class="font-bold">ส่วนราชการ</span> กลุ่มพิพิธภัณฑ์สัตว์น้ำ อุทยานวิทยาศาสตร์พระจอมเกล้า ณ หว้ากอ จังหวัดประจวบคีรีขันธ์</p>
-          <div class="flex flex-wrap justify-between gap-2">
-            <p><span class="font-bold">ที่</span> กพ ......................./2569</p>
-            <p><span class="font-bold">วันที่</span> <span id="memo-date-text"></span></p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 sm:gap-4 items-baseline">
+            <p><span class="font-bold">ที่</span> กพ ......................./<span id="memo-doc-year">2569</span></p>
+            <p><span class="font-bold">วันที่</span> ........ <span id="memo-date-text"></span></p>
           </div>
           <p><span class="font-bold">เรื่อง</span> สรุปรายงานผลการปฏิบัติงานจัดหาและจัดแสดง ประจำเดือน <span id="memo-month-title" class="font-semibold"></span></p>
           <p class="pt-1"><span class="font-bold">เรียน</span> หัวหน้ากลุ่มพิพิธภัณฑ์สัตว์น้ำ</p>
@@ -3255,7 +3255,11 @@
         </tr>`).join('');
 
       document.getElementById('memo-month-title').textContent = mLabel;
-      document.getElementById('memo-date-text').textContent = ym === '2026-10' ? 'พฤศจิกายน 2569' : 'ธันวาคม 2569';
+      const [ymYear, ymMonth] = String(ym || '').split('-').map(Number);
+      const nextDate = (ymYear && ymMonth) ? new Date(ymYear, ymMonth, 1) : new Date();
+      const nextYm = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+      document.getElementById('memo-doc-year').textContent = String(nextDate.getFullYear() + 543);
+      document.getElementById('memo-date-text').textContent = toThaiMonthLabel(nextYm);
       document.getElementById('memo-official-table-body').innerHTML = `
         <tr>
           <td class="border border-slate-800 px-1.5 py-1.5 text-center">1</td>
