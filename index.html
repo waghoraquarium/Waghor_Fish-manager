@@ -129,9 +129,27 @@
         box-shadow: none !important;
         border-color: #CBD5E1 !important;
       }
-      #mortality-print-area .print-break-avoid {
+      #mortality-print-area .print-break-avoid,
+      #carcass-table-print-area .print-break-avoid {
         break-inside: avoid;
         page-break-inside: avoid;
+      }
+      #carcass-table-print-area {
+        box-shadow: none !important;
+        border: none !important;
+        padding: 0 !important;
+      }
+      #carcass-official-table {
+        font-size: 11px !important;
+        border-collapse: collapse !important;
+      }
+      #carcass-official-table th,
+      #carcass-official-table td {
+        border: 1px solid #334155 !important;
+        padding: 3px 5px !important;
+      }
+      #carcass-official-table thead {
+        display: table-header-group;
       }
     }
   </style>
@@ -367,6 +385,10 @@
               <button type="button" data-symptom="เน่าเปื่อย" class="symp-chip tap-target px-3.5 py-2 rounded-xl border text-sm font-medium transition">เน่าเปื่อย</button>
               <button type="button" data-symptom="เปื่อย" class="symp-chip tap-target px-3.5 py-2 rounded-xl border text-sm font-medium transition">เปื่อย</button>
               <button type="button" data-symptom="ตาโปน" class="symp-chip tap-target px-3.5 py-2 rounded-xl border text-sm font-medium transition">ตาโปน</button>
+              <button type="button" data-symptom="ตกเลือด" class="symp-chip tap-target px-3.5 py-2 rounded-xl border text-sm font-medium transition">ตกเลือด</button>
+              <button type="button" data-symptom="ถูกกัด" class="symp-chip tap-target px-3.5 py-2 rounded-xl border text-sm font-medium transition">ถูกกัด</button>
+              <button type="button" data-symptom="โดดออก" class="symp-chip tap-target px-3.5 py-2 rounded-xl border text-sm font-medium transition">โดดออก</button>
+              <button type="button" data-symptom="เป็นโรคจุดขาว" class="symp-chip tap-target px-3.5 py-2 rounded-xl border text-sm font-medium transition">เป็นโรคจุดขาว</button>
               <button type="button" data-symptom="อื่นๆ" class="symp-chip tap-target px-3.5 py-2 rounded-xl border text-sm font-medium transition">อื่นๆ</button>
             </div>
             <input id="death-symptom-custom" type="text" placeholder="ระบุอาการเพิ่มเติม..." class="hidden tap-target mt-2 w-full rounded-xl border border-slate-300 px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
@@ -518,10 +540,27 @@
       <div id="logs-container" class="space-y-2"></div>
     </section>
 
-    <!-- TAB 5: MONTHLY MORTALITY SUMMARY (สรุปการตายประจำเดือน) -->
+    <!-- TAB 5: MONTHLY MORTALITY SUMMARY (สรุปการตายประจำเดือน & ตารางรายการซาก 12 คอลัมน์) -->
     <section id="tab-mortality" class="tab-panel hidden space-y-4">
       <!-- Controls -->
       <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-3 no-print">
+        <!-- View Mode Switcher -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+          <div class="inline-flex rounded-xl bg-slate-100 p-1 gap-1">
+            <button type="button" data-mortview="carcass" class="mortview-btn tap-target px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold bg-navy-900 text-white flex items-center gap-1.5 transition">
+              <i data-lucide="table" class="w-4 h-4"></i> ตารางรายการซาก (12 คอลัมน์)
+            </button>
+            <button type="button" data-mortview="summary" class="mortview-btn tap-target px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1.5 transition">
+              <i data-lucide="bar-chart-3" class="w-4 h-4"></i> สรุปรวมตามชนิด + กราฟ
+            </button>
+          </div>
+          <div id="carcass-numeral-wrap" class="flex items-center gap-1.5">
+            <span class="text-xs font-semibold text-slate-500">ตัวเลข:</span>
+            <button type="button" data-carcassnum="th" class="carcassnum-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-600 text-white">เลขไทย (๑๒๓)</button>
+            <button type="button" data-carcassnum="ar" class="carcassnum-btn px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600">อารบิก (123)</button>
+          </div>
+        </div>
+
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div class="flex flex-wrap items-center gap-2.5">
             <label for="mort-month-select" class="text-sm font-semibold text-slate-700">เลือกเดือน:</label>
@@ -532,7 +571,25 @@
               <button type="button" data-mortfilter="น้ำเค็ม" class="mortfilter-btn tap-target px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-600">น้ำเค็ม</button>
             </div>
           </div>
-          <div class="flex flex-wrap items-center gap-2">
+
+          <!-- Action Buttons: Carcass 12-Col Mode -->
+          <div id="carcass-actions-bar" class="flex flex-wrap items-center gap-2">
+            <button id="btn-export-carcass-xls" type="button" class="tap-target btn-press px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> ส่งออก Excel (.xls)
+            </button>
+            <button id="btn-export-carcass-csv" type="button" class="tap-target btn-press px-3.5 py-2 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition">
+              <i data-lucide="download" class="w-4 h-4"></i> ส่งออก CSV
+            </button>
+            <button id="btn-copy-carcass-table" type="button" class="tap-target btn-press px-3.5 py-2 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition">
+              <i data-lucide="copy" class="w-4 h-4"></i> คัดลอกตาราง
+            </button>
+            <button id="btn-print-carcass" type="button" class="tap-target btn-press px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition">
+              <i data-lucide="printer" class="w-4 h-4"></i> พิมพ์ตาราง A4
+            </button>
+          </div>
+
+          <!-- Action Buttons: Summary Mode -->
+          <div id="mort-summary-actions-bar" class="hidden flex flex-wrap items-center gap-2">
             <button id="btn-copy-mort-table" type="button" class="tap-target btn-press px-3.5 py-2 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 transition">
               <i data-lucide="copy" class="w-4 h-4"></i> คัดลอกตาราง
             </button>
@@ -544,21 +601,94 @@
             </button>
           </div>
         </div>
+
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <div class="relative sm:col-span-2">
             <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5"></i>
-            <input id="mort-search" type="text" placeholder="ค้นหาชื่อชนิดปลา หรือรหัสตู้ที่ตาย เช่น C1, BIGTANK..." class="tap-target w-full rounded-xl border border-slate-300 pl-10 pr-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
+            <input id="mort-search" type="text" placeholder="ค้นหาชื่อชนิดปลา, รหัสตู้, อาการ, หรือหมายเหตุ..." class="tap-target w-full rounded-xl border border-slate-300 pl-10 pr-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
           </div>
-          <select id="mort-sort" class="tap-target rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-medium">
+          <select id="mort-sort" class="hidden tap-target rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-medium">
             <option value="qty_desc">เรียง: ตายมากสุดก่อน</option>
             <option value="value_desc">เรียง: มูลค่าสูงสุดก่อน</option>
             <option value="name_asc">เรียง: ตามชื่อชนิด (ก-ฮ)</option>
           </select>
+          <select id="carcass-sort" class="tap-target rounded-xl border border-slate-300 px-3 py-2 text-sm bg-white font-medium">
+            <option value="date_asc">เรียง: วันที่เก่า → ใหม่ (ตามแบบฟอร์ม)</option>
+            <option value="date_desc">เรียง: วันที่ใหม่ → เก่า</option>
+            <option value="tank_asc">เรียง: ตามรหัสตู้</option>
+            <option value="species_asc">เรียง: ตามชื่อชนิด (ก-ฮ)</option>
+          </select>
+        </div>
+
+      </div>
+
+      <!-- VIEW A: OFFICIAL 12-COLUMN CARCASS INSPECTION TABLE (ตารางรายการซาก 12 คอลัมน์) -->
+      <div id="carcass-table-print-area" class="card-surface rounded-2xl p-4 sm:p-6 space-y-4">
+        <div class="flex justify-end">
+          <span class="px-3 py-1 rounded bg-slate-100 border border-slate-300 text-xs font-bold text-slate-800">กรรมการตรวจซาก</span>
+        </div>
+        <div class="text-center space-y-1">
+          <h2 class="text-base sm:text-lg font-bold text-navy-900">
+            รายการซากสัตว์น้ำกลุ่มพิพิธภัณฑ์สัตว์น้ำ ประจำเดือน <span id="carcass-period-title" class="text-sky-700"></span>
+          </h2>
+          <p id="carcass-filter-subtitle" class="text-xs text-slate-500 no-print"></p>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table id="carcass-official-table" class="w-full text-xs border-collapse border border-slate-400 min-w-[920px]">
+            <thead>
+              <tr class="bg-slate-100 text-slate-900 text-center">
+                <th class="border border-slate-400 py-2 px-1.5 font-bold whitespace-nowrap">วัน/เดือน/ปี</th>
+                <th class="border border-slate-400 py-2 px-1.5 font-bold whitespace-nowrap">ตู้</th>
+                <th class="border border-slate-400 py-2 px-2 font-bold text-left">ชนิดซากสัตว์น้ำ</th>
+                <th class="border border-slate-400 py-2 px-2 font-bold">อาการที่พบ</th>
+                <th class="border border-slate-400 py-2 px-1.5 font-bold">เก็บซาก<br/>(ตัว)</th>
+                <th class="border border-slate-400 py-2 px-1.5 font-bold">ไม่เก็บซาก<br/>(ตัว)</th>
+                <th class="border border-slate-400 py-2 px-1.5 font-bold">รวม<br/>(ตัว)</th>
+                <th class="border border-slate-400 py-2 px-1.5 font-bold">ขนาด<br/>(ซม.)</th>
+                <th class="border border-slate-400 py-2 px-1.5 font-bold">น้ำหนัก<br/>(กรัม)</th>
+                <th class="border border-slate-400 py-2 px-1.5 font-bold">ราคา/หน่วย<br/>(บาท)</th>
+                <th class="border border-slate-400 py-2 px-1.5 font-bold">ราคารวม<br/>(บาท)</th>
+                <th class="border border-slate-400 py-2 px-2 font-bold">หมายเหตุ</th>
+              </tr>
+            </thead>
+            <tbody id="carcass-table-body" class="tabular-nums"></tbody>
+            <tfoot id="carcass-table-foot" class="bg-slate-50 font-bold text-slate-900 tabular-nums"></tfoot>
+          </table>
+          <div id="carcass-empty-state" class="hidden py-8 text-center space-y-2.5">
+            <p class="text-sm font-semibold text-slate-600">ไม่มีรายการซากสัตว์น้ำในเดือน/เงื่อนไขที่เลือก</p>
+            <div id="carcass-empty-jump" class="no-print"></div>
+          </div>
+        </div>
+
+        <!-- 4-Line Summary -->
+        <div id="carcass-footer-block" class="pt-2 space-y-3 print-break-avoid">
+          <div class="space-y-1.5 text-xs sm:text-sm text-slate-900 max-w-md">
+            <div class="font-bold">สรุปซากสัตว์น้ำประจำเดือน <span id="carcass-sum-month"></span></div>
+            <div class="grid grid-cols-12 gap-1">
+              <span class="col-span-5" id="carcass-sum-l1-label">๑. สัตว์น้ำตายทั้งหมด</span>
+              <span class="col-span-3 text-right font-bold tabular-nums" id="carcass-sum-species"></span>
+              <span class="col-span-4 text-right font-bold tabular-nums" id="carcass-sum-total-qty"></span>
+            </div>
+            <div class="grid grid-cols-12 gap-1">
+              <span class="col-span-8" id="carcass-sum-l2-label">๒. เก็บซาก</span>
+              <span class="col-span-4 text-right font-bold tabular-nums" id="carcass-sum-kept"></span>
+            </div>
+            <div class="grid grid-cols-12 gap-1">
+              <span class="col-span-8" id="carcass-sum-l3-label">๓. ไม่เก็บซาก</span>
+              <span class="col-span-4 text-right font-bold tabular-nums" id="carcass-sum-unkept"></span>
+            </div>
+            <div class="grid grid-cols-12 gap-1">
+              <span class="col-span-5" id="carcass-sum-l4-label">๔. รวมมูลค่าซากสัตว์น้ำ</span>
+              <span class="col-span-7 text-right font-bold tabular-nums" id="carcass-sum-value"></span>
+            </div>
+          </div>
+
         </div>
       </div>
 
-      <!-- Printable Mortality Summary Report -->
-      <div id="mortality-print-area" class="space-y-4">
+      <!-- VIEW B: Printable Mortality Summary Report (สรุปรวมตามชนิด + กราฟ) -->
+      <div id="mortality-print-area" class="hidden space-y-4">
         <!-- Print & Screen Header -->
         <div class="card-surface print-card rounded-2xl p-4 sm:p-5 flex flex-wrap items-center justify-between gap-2">
           <div>
@@ -1246,6 +1376,16 @@
           m.species_name_snapshot = trimStr(m.species_name_snapshot);
         });
       }
+      if (Array.isArray(data.staff)) {
+        data.staff.forEach(s => {
+          s.staff_id = trimStr(s.staff_id);
+          s.full_name = trimStr(s.full_name);
+        });
+      }
+      data.activeStaffId = trimStr(data.activeStaffId);
+      if (!data.activeStaffId && Array.isArray(data.staff) && data.staff[0] && data.staff[0].staff_id) {
+        data.activeStaffId = data.staff[0].staff_id;
+      }
       return data;
     }
 
@@ -1649,8 +1789,11 @@
       selectedSymptom: '',
       invFilter: 'ALL',
       logType: 'mortality',
+      mortView: 'carcass',
       mortFilter: 'ALL',
       mortSort: 'qty_desc',
+      carcassSort: 'date_asc',
+      carcassThaiNum: true,
       expandedTanks: {},
       confirmCallback: null
     };
@@ -2050,7 +2193,7 @@
         if (t.tank_type !== 'DISPLAY' || !t.is_active) return false;
         if (ui.tankFilter === 'น้ำจืด' && t.water_type !== 'น้ำจืด') return false;
         if (ui.tankFilter === 'น้ำเค็ม' && t.water_type !== 'น้ำเค็ม') return false;
-        if (ui.tankFilter === 'MINE' && t.owner_staff_id !== state.activeStaffId) return false;
+        if (ui.tankFilter === 'MINE' && (!state.activeStaffId || t.owner_staff_id !== state.activeStaffId)) return false;
         if (q && !t.tank_id.toLowerCase().includes(q) && !t.tank_name.toLowerCase().includes(q)) return false;
         return true;
       });
@@ -2093,7 +2236,7 @@
       const srcTank = getTank(ui.selectedTankId);
       const opts = state.tanks.filter(t => t.tank_type === 'DISPLAY' && t.is_active && t.tank_id !== ui.selectedTankId);
       sel.innerHTML = `<option value="">-- เลือกตู้ปลายทาง --</option>` + opts.map(t =>
-        `<option value="${escapeHtml(t.tank_id)}">${escapeHtml(t.tank_id)} (${escapeHtml(t.water_type)}${srcTank && t.water_type === srcTank.water_type ? '' : ' • ต่างประเภทน้ำ'})</option>`
+        `<option value="${escapeHtml(t.tank_id)}">${escapeHtml(t.tank_id)} (${escapeHtml(t.water_type)}${srcTank && t.water_type !== srcTank.water_type ? ' • ต่างประเภทน้ำ' : ''})</option>`
       ).join('');
       if (opts.some(o => o.tank_id === prev)) sel.value = prev;
     }
@@ -3093,10 +3236,317 @@
       }).join('');
     }
 
+    // === Official 12-Column Carcass Inspection Table (กรรมการตรวจซาก) ===
+
+    function toThaiDigits(val) {
+      const th = ['๐','๑','๒','๓','๔','๕','๖','๗','๘','๙'];
+      return String(val == null ? '' : val).replace(/[0-9]/g, d => th[Number(d)]);
+    }
+
+    function fmtCarcassDigits(val) {
+      const s = String(val == null ? '' : val);
+      return ui.carcassThaiNum ? toThaiDigits(s) : s;
+    }
+
+    function computeCarcassRows(ym, waterFilter, searchQuery, sortKey) {
+      const q = String(searchQuery || '').trim().toLowerCase();
+      const rows = state.mortalityLogs.filter(m => {
+        if (!String(m.death_date || '').startsWith(ym)) return false;
+        const wt = getMortalityWaterType(m);
+        if (waterFilter && waterFilter !== 'ALL' && wt !== waterFilter) return false;
+        if (q) {
+          const hay = [
+            m.species_name_snapshot, m.species_id, m.tank_id,
+            m.symptom, m.source_note, m.disposal_type
+          ].map(x => String(x || '').toLowerCase()).join(' ');
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      }).map(m => {
+        const qty = Number(m.qty || 0);
+        const kept = m.disposal_type === 'เก็บซาก' ? qty : 0;
+        const unkept = m.disposal_type === 'เก็บซาก' ? 0 : qty;
+        const unitCost = Number(m.unit_cost_applied || 0);
+        const totalLoss = Number(m.total_loss_value || 0);
+        const sizeVal = m.size_cm !== '' && m.size_cm !== null && m.size_cm !== undefined && Number(m.size_cm) > 0 ? Number(m.size_cm) : '';
+        const weightVal = m.weight_g !== '' && m.weight_g !== null && m.weight_g !== undefined && Number(m.weight_g) > 0 ? Number(m.weight_g) : '';
+        const spName = m.species_name_snapshot || (getSpecies(m.species_id) ? getSpecies(m.species_id).species_name_th : m.species_id) || '-';
+        return {
+          death_id: m.death_id || '',
+          death_date: String(m.death_date || ''),
+          date_th: fmtThaiDate(m.death_date),
+          tank_id: String(m.tank_id || '-'),
+          species_id: String(m.species_id || ''),
+          species_name: spName,
+          symptom: String(m.symptom || ''),
+          kept,
+          unkept,
+          qty,
+          size_cm: sizeVal,
+          weight_g: weightVal,
+          unit_cost: unitCost,
+          total_loss: totalLoss,
+          note: String(m.source_note || '')
+        };
+      });
+
+      rows.sort((a, b) => {
+        if (sortKey === 'date_desc') return b.death_date.localeCompare(a.death_date) || b.death_id.localeCompare(a.death_id);
+        if (sortKey === 'tank_asc') return a.tank_id.localeCompare(b.tank_id, 'th') || a.death_date.localeCompare(b.death_date);
+        if (sortKey === 'species_asc') return a.species_name.localeCompare(b.species_name, 'th') || a.death_date.localeCompare(b.death_date);
+        return a.death_date.localeCompare(b.death_date) || a.death_id.localeCompare(b.death_id);
+      });
+
+      const speciesSet = new Set(rows.map(r => r.species_id || r.species_name));
+      const totalKept = rows.reduce((s, r) => s + r.kept, 0);
+      const totalUnkept = rows.reduce((s, r) => s + r.unkept, 0);
+      const totalQty = rows.reduce((s, r) => s + r.qty, 0);
+      const totalValue = Math.round(rows.reduce((s, r) => s + r.total_loss, 0) * 100) / 100;
+
+      return {
+        ym,
+        rows,
+        totals: {
+          speciesCount: speciesSet.size,
+          kept: totalKept,
+          unkept: totalUnkept,
+          qty: totalQty,
+          value: totalValue
+        }
+      };
+    }
+
+    function renderCarcassTable(ym, q) {
+      const sortEl = document.getElementById('carcass-sort');
+      if (sortEl) sortEl.value = ui.carcassSort;
+
+      document.querySelectorAll('.carcassnum-btn').forEach(b => {
+        const active = (b.dataset.carcassnum === 'th') === ui.carcassThaiNum;
+        b.className = `carcassnum-btn px-2.5 py-1 rounded-lg text-xs font-semibold ${active ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`;
+      });
+
+      const data = computeCarcassRows(ym, ui.mortFilter, q, ui.carcassSort);
+      const mLabel = fmtCarcassDigits(toThaiMonthLabel(ym));
+      document.getElementById('carcass-period-title').textContent = mLabel;
+      document.getElementById('carcass-sum-month').textContent = mLabel;
+      document.getElementById('carcass-filter-subtitle').textContent = `ประเภท: ${ui.mortFilter === 'ALL' ? 'ทั้งหมด (น้ำจืด + น้ำเค็ม)' : ui.mortFilter} • ทั้งหมด ${fmtNum(data.rows.length)} รายการ`;
+
+      const tbody = document.getElementById('carcass-table-body');
+      const tfoot = document.getElementById('carcass-table-foot');
+      const emptyEl = document.getElementById('carcass-empty-state');
+      const jumpEl = document.getElementById('carcass-empty-jump');
+      const footerBlock = document.getElementById('carcass-footer-block');
+
+      if (data.rows.length === 0) {
+        tbody.innerHTML = '';
+        tfoot.innerHTML = '';
+        emptyEl.classList.remove('hidden');
+        footerBlock.classList.add('hidden');
+        const countsByMonth = {};
+        state.mortalityLogs.forEach(m => {
+          const mYm = String(m.death_date || '').slice(0, 7);
+          if (mYm && mYm !== ym) countsByMonth[mYm] = (countsByMonth[mYm] || 0) + Number(m.qty || 0);
+        });
+        const altMonth = Object.keys(countsByMonth).sort((a, b) => b.localeCompare(a))[0];
+        if (altMonth && !q && ui.mortFilter === 'ALL') {
+          jumpEl.innerHTML = `<button type="button" data-mort-jump-month="${escapeHtml(altMonth)}" class="tap-target px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold">ดูข้อมูลเดือน ${escapeHtml(toThaiMonthLabel(altMonth))} (${fmtNum(countsByMonth[altMonth])} ตัว)</button>`;
+        } else {
+          jumpEl.innerHTML = '';
+        }
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      footerBlock.classList.remove('hidden');
+
+      const dFmt = v => fmtCarcassDigits(v);
+      tbody.innerHTML = data.rows.map(r => {
+        const noteClass = r.note ? 'text-rose-700 font-medium' : 'text-slate-400';
+        return `
+          <tr class="hover:bg-slate-50/80">
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center whitespace-nowrap">${escapeHtml(dFmt(r.date_th))}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center whitespace-nowrap font-medium">${escapeHtml(dFmt(r.tank_id))}</td>
+            <td class="border border-slate-300 py-1.5 px-2 text-left text-slate-900">${escapeHtml(r.species_name)}</td>
+            <td class="border border-slate-300 py-1.5 px-2 text-center">${escapeHtml(r.symptom)}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center">${r.kept > 0 ? escapeHtml(dFmt(fmtNum(r.kept))) : ''}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center">${r.unkept > 0 ? escapeHtml(dFmt(fmtNum(r.unkept))) : ''}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center font-semibold">${escapeHtml(dFmt(fmtNum(r.qty)))}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center">${r.size_cm !== '' ? escapeHtml(dFmt(r.size_cm)) : ''}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-center">${r.weight_g !== '' ? escapeHtml(dFmt(fmtNum(r.weight_g))) : ''}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-right">${r.unit_cost > 0 ? escapeHtml(dFmt(fmtMoney(r.unit_cost))) : ''}</td>
+            <td class="border border-slate-300 py-1.5 px-1.5 text-right">${r.total_loss > 0 ? escapeHtml(dFmt(fmtMoney(r.total_loss))) : ''}</td>
+            <td class="border border-slate-300 py-1.5 px-2 text-center ${noteClass}">${escapeHtml(r.note)}</td>
+          </tr>`;
+      }).join('');
+
+      tfoot.innerHTML = `
+        <tr>
+          <td colspan="2" class="border border-slate-400 py-2 px-2 text-center">รวม</td>
+          <td class="border border-slate-400 py-2 px-2 text-center">${escapeHtml(dFmt(fmtNum(data.totals.speciesCount)))}</td>
+          <td class="border border-slate-400 py-2 px-2"></td>
+          <td class="border border-slate-400 py-2 px-1.5 text-center">${escapeHtml(dFmt(fmtNum(data.totals.kept)))}</td>
+          <td class="border border-slate-400 py-2 px-1.5 text-center">${escapeHtml(dFmt(fmtNum(data.totals.unkept)))}</td>
+          <td class="border border-slate-400 py-2 px-1.5 text-center">${escapeHtml(dFmt(fmtNum(data.totals.qty)))}</td>
+          <td class="border border-slate-400 py-2 px-1.5"></td>
+          <td class="border border-slate-400 py-2 px-1.5"></td>
+          <td class="border border-slate-400 py-2 px-1.5"></td>
+          <td class="border border-slate-400 py-2 px-1.5 text-right">${escapeHtml(dFmt(fmtMoney(data.totals.value)))}</td>
+          <td class="border border-slate-400 py-2 px-2"></td>
+        </tr>`;
+
+      document.getElementById('carcass-sum-l1-label').textContent = dFmt('1. สัตว์น้ำตายทั้งหมด');
+      document.getElementById('carcass-sum-l2-label').textContent = dFmt('2. เก็บซาก');
+      document.getElementById('carcass-sum-l3-label').textContent = dFmt('3. ไม่เก็บซาก');
+      document.getElementById('carcass-sum-l4-label').textContent = dFmt('4. รวมมูลค่าซากสัตว์น้ำ');
+      document.getElementById('carcass-sum-species').textContent = `${dFmt(fmtNum(data.totals.speciesCount))} ชนิด`;
+      document.getElementById('carcass-sum-total-qty').textContent = `${dFmt(fmtNum(data.totals.qty))} ตัว`;
+      document.getElementById('carcass-sum-kept').textContent = `${dFmt(fmtNum(data.totals.kept))} ตัว`;
+      document.getElementById('carcass-sum-unkept').textContent = `${dFmt(fmtNum(data.totals.unkept))} ตัว`;
+      document.getElementById('carcass-sum-value').textContent = `${dFmt(fmtMoney(data.totals.value))} บาท`;
+
+    }
+
+    function buildCarcassTsv(data) {
+      const dFmt = v => fmtCarcassDigits(v);
+      const mLabel = dFmt(toThaiMonthLabel(data.ym));
+      const title = `รายการซากสัตว์น้ำกลุ่มพิพิธภัณฑ์สัตว์น้ำ ประจำเดือน ${mLabel}`;
+      const header = ['วัน/เดือน/ปี','ตู้','ชนิดซากสัตว์น้ำ','อาการที่พบ','เก็บซาก (ตัว)','ไม่เก็บซาก (ตัว)','รวม (ตัว)','ขนาด (ซม.)','น้ำหนัก (กรัม)','ราคา/หน่วย (บาท)','ราคารวม (บาท)','หมายเหตุ'].join('\t');
+      const body = data.rows.map(r => [
+        dFmt(r.date_th),
+        dFmt(r.tank_id),
+        r.species_name,
+        r.symptom,
+        r.kept > 0 ? dFmt(r.kept) : '',
+        r.unkept > 0 ? dFmt(r.unkept) : '',
+        dFmt(r.qty),
+        r.size_cm !== '' ? dFmt(r.size_cm) : '',
+        r.weight_g !== '' ? dFmt(r.weight_g) : '',
+        r.unit_cost > 0 ? dFmt(r.unit_cost) : '',
+        r.total_loss > 0 ? dFmt(r.total_loss) : '',
+        r.note
+      ].join('\t')).join('\n');
+      const foot = ['รวม','', dFmt(data.totals.speciesCount), '', dFmt(data.totals.kept), dFmt(data.totals.unkept), dFmt(data.totals.qty), '', '', '', dFmt(data.totals.value), ''].join('\t');
+      const sum = [
+        `สรุปซากสัตว์น้ำประจำเดือน ${mLabel}`,
+        `${dFmt('1.')} สัตว์น้ำตายทั้งหมด\t${dFmt(data.totals.speciesCount)} ชนิด\t${dFmt(data.totals.qty)} ตัว`,
+        `${dFmt('2.')} เก็บซาก\t${dFmt(data.totals.kept)} ตัว`,
+        `${dFmt('3.')} ไม่เก็บซาก\t${dFmt(data.totals.unkept)} ตัว`,
+        `${dFmt('4.')} รวมมูลค่าซากสัตว์น้ำ\t${dFmt(fmtMoney(data.totals.value))} บาท`
+      ].join('\n');
+      return `${title}\n${header}\n${body}\n${foot}\n\n${sum}`;
+    }
+
+    function exportCarcassCsv(data) {
+      const dFmt = v => fmtCarcassDigits(v);
+      const header = ['วัน/เดือน/ปี','ตู้','ชนิดซากสัตว์น้ำ','อาการที่พบ','เก็บซาก (ตัว)','ไม่เก็บซาก (ตัว)','รวม (ตัว)','ขนาด (ซม.)','น้ำหนัก (กรัม)','ราคา/หน่วย (บาท)','ราคารวม (บาท)','หมายเหตุ'].map(csvSafeCell).join(',') + '\n';
+      const body = data.rows.map(r => [
+        csvSafeCell(dFmt(r.date_th)),
+        csvSafeCell(dFmt(r.tank_id)),
+        csvSafeCell(r.species_name),
+        csvSafeCell(r.symptom),
+        r.kept > 0 ? csvSafeCell(dFmt(r.kept)) : '',
+        r.unkept > 0 ? csvSafeCell(dFmt(r.unkept)) : '',
+        csvSafeCell(dFmt(r.qty)),
+        r.size_cm !== '' ? csvSafeCell(dFmt(r.size_cm)) : '',
+        r.weight_g !== '' ? csvSafeCell(dFmt(r.weight_g)) : '',
+        r.unit_cost > 0 ? csvSafeCell(dFmt(r.unit_cost)) : '',
+        r.total_loss > 0 ? csvSafeCell(dFmt(r.total_loss)) : '',
+        csvSafeCell(r.note)
+      ].join(',')).join('\n');
+      const footer = [
+        csvSafeCell('รวม'), '', csvSafeCell(dFmt(data.totals.speciesCount)), '',
+        csvSafeCell(dFmt(data.totals.kept)), csvSafeCell(dFmt(data.totals.unkept)), csvSafeCell(dFmt(data.totals.qty)),
+        '', '', '', csvSafeCell(dFmt(data.totals.value)), ''
+      ].join(',');
+      downloadFile(`รายการซากสัตว์น้ำ_${data.ym}.csv`, '\uFEFF' + header + body + '\n' + footer, 'text/csv;charset=utf-8');
+      showToast(`ส่งออกไฟล์ CSV รายการซากสัตว์น้ำ ${toThaiMonthLabel(data.ym)} แล้ว`);
+    }
+
+    function exportCarcassExcel(data) {
+      const dFmt = v => fmtCarcassDigits(v);
+      const mLabel = dFmt(toThaiMonthLabel(data.ym));
+      const rowsHtml = data.rows.map(r => `
+        <tr>
+          <td style="text-align:center;mso-number-format:'\\@';">${escapeHtml(dFmt(r.date_th))}</td>
+          <td style="text-align:center;mso-number-format:'\\@';">${escapeHtml(dFmt(r.tank_id))}</td>
+          <td style="text-align:left;">${escapeHtml(r.species_name)}</td>
+          <td style="text-align:center;">${escapeHtml(r.symptom)}</td>
+          <td style="text-align:center;">${r.kept > 0 ? escapeHtml(dFmt(fmtNum(r.kept))) : ''}</td>
+          <td style="text-align:center;">${r.unkept > 0 ? escapeHtml(dFmt(fmtNum(r.unkept))) : ''}</td>
+          <td style="text-align:center;font-weight:bold;">${escapeHtml(dFmt(fmtNum(r.qty)))}</td>
+          <td style="text-align:center;">${r.size_cm !== '' ? escapeHtml(dFmt(r.size_cm)) : ''}</td>
+          <td style="text-align:center;">${r.weight_g !== '' ? escapeHtml(dFmt(fmtNum(r.weight_g))) : ''}</td>
+          <td style="text-align:right;">${r.unit_cost > 0 ? escapeHtml(dFmt(fmtMoney(r.unit_cost))) : ''}</td>
+          <td style="text-align:right;">${r.total_loss > 0 ? escapeHtml(dFmt(fmtMoney(r.total_loss))) : ''}</td>
+          <td style="text-align:center;color:#991B1B;">${escapeHtml(r.note)}</td>
+        </tr>`).join('');
+
+      const xlsDoc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8"><style>
+  body { font-family: 'TH SarabunPSK', 'Sarabun', Tahoma, sans-serif; font-size: 14pt; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #000000; padding: 4px 6px; vertical-align: middle; }
+  th { background-color: #E2E8F0; font-weight: bold; text-align: center; }
+  .noborder td { border: none; padding: 3px 6px; }
+</style></head><body>
+  <table class="noborder">
+    <tr><td colspan="10"></td><td colspan="2" style="text-align:center;background:#E2E8F0;font-weight:bold;border:1px solid #94A3B8;">กรรมการตรวจซาก</td></tr>
+    <tr><td colspan="12" style="text-align:center;font-size:16pt;font-weight:bold;">รายการซากสัตว์น้ำกลุ่มพิพิธภัณฑ์สัตว์น้ำ ประจำเดือน ${escapeHtml(mLabel)}</td></tr>
+  </table>
+  <table>
+    <thead>
+      <tr>
+        <th>วัน/เดือน/ปี</th><th>ตู้</th><th>ชนิดซากสัตว์น้ำ</th><th>อาการที่พบ</th>
+        <th>เก็บซาก (ตัว)</th><th>ไม่เก็บซาก (ตัว)</th><th>รวม (ตัว)</th>
+        <th>ขนาด (ซม.)</th><th>น้ำหนัก (กรัม)</th><th>ราคา/หน่วย (บาท)</th><th>ราคารวม (บาท)</th><th>หมายเหตุ</th>
+      </tr>
+    </thead>
+    <tbody>${rowsHtml}</tbody>
+    <tfoot>
+      <tr style="font-weight:bold;background:#F1F5F9;">
+        <td colspan="2" style="text-align:center;">รวม</td>
+        <td style="text-align:center;">${escapeHtml(dFmt(fmtNum(data.totals.speciesCount)))}</td>
+        <td></td>
+        <td style="text-align:center;">${escapeHtml(dFmt(fmtNum(data.totals.kept)))}</td>
+        <td style="text-align:center;">${escapeHtml(dFmt(fmtNum(data.totals.unkept)))}</td>
+        <td style="text-align:center;">${escapeHtml(dFmt(fmtNum(data.totals.qty)))}</td>
+        <td></td><td></td><td></td>
+        <td style="text-align:right;">${escapeHtml(dFmt(fmtMoney(data.totals.value)))}</td>
+        <td></td>
+      </tr>
+    </tfoot>
+  </table>
+  <br/>
+  <table class="noborder">
+    <tr><td colspan="12" style="font-weight:bold;">สรุปซากสัตว์น้ำประจำเดือน ${escapeHtml(mLabel)}</td></tr>
+    <tr><td colspan="3">${escapeHtml(dFmt('1.'))} สัตว์น้ำตายทั้งหมด</td><td style="text-align:right;font-weight:bold;">${escapeHtml(dFmt(fmtNum(data.totals.speciesCount)))}</td><td>ชนิด</td><td style="text-align:right;font-weight:bold;">${escapeHtml(dFmt(fmtNum(data.totals.qty)))}</td><td colspan="6">ตัว</td></tr>
+    <tr><td colspan="5">${escapeHtml(dFmt('2.'))} เก็บซาก</td><td style="text-align:right;font-weight:bold;">${escapeHtml(dFmt(fmtNum(data.totals.kept)))}</td><td colspan="6">ตัว</td></tr>
+    <tr><td colspan="5">${escapeHtml(dFmt('3.'))} ไม่เก็บซาก</td><td style="text-align:right;font-weight:bold;">${escapeHtml(dFmt(fmtNum(data.totals.unkept)))}</td><td colspan="6">ตัว</td></tr>
+    <tr><td colspan="3">${escapeHtml(dFmt('4.'))} รวมมูลค่าซากสัตว์น้ำ</td><td colspan="3" style="text-align:right;font-weight:bold;">${escapeHtml(dFmt(fmtMoney(data.totals.value)))}</td><td colspan="6">บาท</td></tr>
+  </table>
+</body></html>`;
+      downloadFile(`รายการซากสัตว์น้ำ_${data.ym}.xls`, '\uFEFF' + xlsDoc, 'application/vnd.ms-excel;charset=utf-8');
+      showToast(`ส่งออกไฟล์ Excel รายการซากสัตว์น้ำ ${toThaiMonthLabel(data.ym)} แล้ว`);
+    }
+
     function renderMortalityTab() {
+      const isCarcass = ui.mortView === 'carcass';
+      document.querySelectorAll('.mortview-btn').forEach(b => {
+        const active = b.dataset.mortview === ui.mortView;
+        b.className = `mortview-btn tap-target px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition ${active ? 'bg-navy-900 text-white' : 'text-slate-600 hover:text-slate-900'}`;
+      });
+      document.getElementById('carcass-table-print-area').classList.toggle('hidden', !isCarcass);
+      document.getElementById('mortality-print-area').classList.toggle('hidden', isCarcass);
+      document.getElementById('carcass-actions-bar').classList.toggle('hidden', !isCarcass);
+      document.getElementById('mort-summary-actions-bar').classList.toggle('hidden', isCarcass);
+      document.getElementById('carcass-sort').classList.toggle('hidden', !isCarcass);
+      document.getElementById('mort-sort').classList.toggle('hidden', isCarcass);
+      document.getElementById('carcass-numeral-wrap').classList.toggle('hidden', !isCarcass);
+
       const monthSel = document.getElementById('mort-month-select');
       const ym = (monthSel && monthSel.value) || getTodayIso().slice(0, 7);
       const q = document.getElementById('mort-search').value;
+      renderCarcassTable(ym, q);
       const sortEl = document.getElementById('mort-sort');
       if (sortEl) sortEl.value = ui.mortSort;
 
@@ -3946,7 +4396,40 @@ const THAI_SHORT_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','�
       document.getElementById('log-month-filter').addEventListener('change', () => { renderLogsTab(); if (window.lucide) lucide.createIcons(); });
       document.getElementById('log-search').addEventListener('input', () => { renderLogsTab(); if (window.lucide) lucide.createIcons(); });
 
-      // Monthly Mortality Summary Tab
+      // Monthly Mortality Summary Tab (12-Col Carcass Table + Summary)
+      document.querySelectorAll('.mortview-btn').forEach(btn => {
+        btn.addEventListener('click', () => { ui.mortView = btn.dataset.mortview; renderMortalityTab(); if (window.lucide) lucide.createIcons(); });
+      });
+      document.querySelectorAll('.carcassnum-btn').forEach(btn => {
+        btn.addEventListener('click', () => { ui.carcassThaiNum = btn.dataset.carcassnum === 'th'; renderMortalityTab(); });
+      });
+      document.getElementById('carcass-sort').addEventListener('change', e => { ui.carcassSort = e.target.value; renderMortalityTab(); });
+      document.getElementById('carcass-empty-jump').addEventListener('click', e => {
+        const btn = e.target.closest('[data-mort-jump-month]');
+        if (!btn) return;
+        document.getElementById('mort-month-select').value = btn.dataset.mortJumpMonth;
+        renderMortalityTab();
+        if (window.lucide) lucide.createIcons();
+      });
+      document.getElementById('btn-export-carcass-xls').addEventListener('click', () => {
+        const ym = document.getElementById('mort-month-select').value;
+        const data = computeCarcassRows(ym, ui.mortFilter, document.getElementById('mort-search').value, ui.carcassSort);
+        if (data.rows.length === 0) { showToast('ไม่มีข้อมูลสำหรับส่งออก Excel', true); return; }
+        exportCarcassExcel(data);
+      });
+      document.getElementById('btn-export-carcass-csv').addEventListener('click', () => {
+        const ym = document.getElementById('mort-month-select').value;
+        const data = computeCarcassRows(ym, ui.mortFilter, document.getElementById('mort-search').value, ui.carcassSort);
+        if (data.rows.length === 0) { showToast('ไม่มีข้อมูลสำหรับส่งออก CSV', true); return; }
+        exportCarcassCsv(data);
+      });
+      document.getElementById('btn-copy-carcass-table').addEventListener('click', () => {
+        const ym = document.getElementById('mort-month-select').value;
+        const data = computeCarcassRows(ym, ui.mortFilter, document.getElementById('mort-search').value, ui.carcassSort);
+        if (data.rows.length === 0) { showToast('ไม่มีข้อมูลตารางสำหรับคัดลอก', true); return; }
+        copyText(buildCarcassTsv(data), 'คัดลอกตารางรายการซาก (12 คอลัมน์) แล้ว');
+      });
+      document.getElementById('btn-print-carcass').addEventListener('click', () => window.print());
       document.getElementById('mort-month-select').addEventListener('change', () => { renderMortalityTab(); if (window.lucide) lucide.createIcons(); });
       document.querySelectorAll('.mortfilter-btn').forEach(btn => {
         btn.addEventListener('click', () => { ui.mortFilter = btn.dataset.mortfilter; renderMortalityTab(); if (window.lucide) lucide.createIcons(); });
