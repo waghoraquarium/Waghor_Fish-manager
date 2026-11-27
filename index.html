@@ -151,6 +151,53 @@
       #carcass-official-table thead {
         display: table-header-group;
       }
+      body.printing-manual > header,
+      body.printing-manual > main,
+      body.printing-manual > nav,
+      body.printing-manual > #toast,
+      body.printing-manual > div[id^="modal-"]:not(#modal-manual) {
+        display: none !important;
+      }
+      body.printing-manual #modal-manual {
+        position: static !important;
+        display: block !important;
+        background: #fff !important;
+        padding: 0 !important;
+        inset: auto !important;
+        overflow: visible !important;
+      }
+      body.printing-manual #modal-manual > div {
+        max-width: 100% !important;
+        max-height: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        overflow: visible !important;
+      }
+      body.printing-manual #modal-manual-body {
+        overflow: visible !important;
+        padding: 0 !important;
+      }
+      body.printing-manual .manual-itab-panel {
+        display: block !important;
+        margin-top: 0.75rem;
+        padding-top: 0.5rem;
+        border-top: 1px dashed #CBD5E1;
+      }
+      body.printing-manual .manual-print-label {
+        display: inline-block !important;
+      }
+      body.printing-manual .manual-faq-a {
+        display: block !important;
+      }
+      body.printing-manual .manual-chapter,
+      body.printing-manual .manual-break-avoid {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      body.printing-manual .manual-cover {
+        break-after: page;
+        page-break-after: always;
+      }
     }
   </style>
 </head>
@@ -178,6 +225,10 @@
         <button id="btn-open-staff" type="button" class="tap-target px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 flex items-center gap-2 text-xs sm:text-sm transition" aria-label="สลับผู้บันทึกและตั้งค่า">
           <i data-lucide="user-check" class="w-4 h-4 text-sky-300"></i>
           <span id="header-staff-name" class="max-w-[110px] sm:max-w-[160px] truncate font-medium">นายยุทธพงษ์</span>
+        </button>
+        <button id="btn-open-manual" type="button" class="tap-target px-2.5 sm:px-3 py-1.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 border border-sky-300/30 flex items-center gap-1.5 text-xs sm:text-sm font-medium text-sky-100 transition" aria-label="คู่มือการใช้งาน">
+          <i data-lucide="book-open" class="w-4 h-4 text-sky-300"></i>
+          <span class="hidden sm:inline">คู่มือการใช้งาน</span>
         </button>
         <button id="btn-open-settings" type="button" class="tap-target w-10 h-10 rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 flex items-center justify-center transition" aria-label="ตั้งค่าและส่งออกข้อมูล">
           <i data-lucide="sliders-horizontal" class="w-4 h-4 text-slate-200"></i>
@@ -1290,6 +1341,206 @@
       <div class="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
         <button id="btn-cancel-edit-lot" type="button" class="tap-target btn-press px-4 py-2 rounded-xl bg-white border border-slate-300 text-slate-700 text-sm font-semibold">ยกเลิก</button>
         <button id="btn-save-edit-lot" type="button" class="tap-target btn-press px-4 py-2 rounded-xl bg-navy-800 hover:bg-navy-900 text-white text-sm font-semibold">บันทึกการแก้ไข</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Interactive User Manual & Print-to-PDF -->
+  <div id="modal-manual" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white w-full sm:max-w-4xl rounded-t-2xl sm:rounded-2xl max-h-[92vh] flex flex-col overflow-hidden shadow-2xl">
+      <!-- Modal Header -->
+      <div class="px-4 sm:px-6 py-3.5 border-b border-white/10 flex flex-wrap items-center justify-between gap-2 text-white shrink-0 no-print" style="background: linear-gradient(135deg, #061224 0%, #0B1F3A 60%, #0E2B50 100%);">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0">
+            <i data-lucide="book-open" class="w-5 h-5 text-sky-300"></i>
+          </div>
+          <div class="min-w-0">
+            <h2 class="text-sm sm:text-base font-bold truncate">คู่มือการใช้งาน Waghor AquaLog (WG_Fishmanager)</h2>
+            <p class="text-[11px] text-sky-200/80 truncate">ฉบับล่าสุด • รองรับการค้นหาและพิมพ์เป็น PDF (A4)</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <input id="manual-modal-search" type="search" placeholder="ค้นหาในคู่มือ..." class="hidden sm:block rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-300 px-3 py-1.5 text-xs w-44 focus:outline-none focus:ring-2 focus:ring-sky-400" />
+          <button id="btn-manual-print-pdf" type="button" class="tap-target btn-press px-3 py-1.5 rounded-xl bg-sky-400 hover:bg-sky-300 text-navy-950 text-xs font-bold flex items-center gap-1.5">
+            <i data-lucide="printer" class="w-4 h-4"></i>
+            <span>พิมพ์ / บันทึก PDF</span>
+          </button>
+          <button id="btn-close-manual" type="button" class="tap-target w-9 h-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center" aria-label="ปิดคู่มือ">
+            <i data-lucide="x" class="w-5 h-5 text-white"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quick Jump Chips (No-Print) -->
+      <div class="px-4 sm:px-6 py-2 bg-slate-50 border-b border-slate-200 flex items-center gap-1.5 overflow-x-auto shrink-0 no-print">
+        <a href="#mch-1" class="manual-jump px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-sky-400 text-xs font-semibold text-slate-700 whitespace-nowrap">1. ภาพรวม 6 แท็บ</a>
+        <a href="#mch-2" class="manual-jump px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-sky-400 text-xs font-semibold text-slate-700 whitespace-nowrap">2. ตั้งค่าเริ่มต้น</a>
+        <a href="#mch-3" class="manual-jump px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-sky-400 text-xs font-semibold text-slate-700 whitespace-nowrap">3. บันทึกด่วน</a>
+        <a href="#mch-4" class="manual-jump px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-sky-400 text-xs font-semibold text-slate-700 whitespace-nowrap">4. รอรับเข้า</a>
+        <a href="#mch-5" class="manual-jump px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-sky-400 text-xs font-semibold text-slate-700 whitespace-nowrap">5. สต็อกตู้ &amp; Stock Card</a>
+        <a href="#mch-6" class="manual-jump px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-sky-400 text-xs font-semibold text-slate-700 whitespace-nowrap">6. ประวัติรายวัน</a>
+        <a href="#mch-7" class="manual-jump px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-sky-400 text-xs font-semibold text-slate-700 whitespace-nowrap">7. สรุปการตาย (12 คอลัมน์)</a>
+        <a href="#mch-8" class="manual-jump px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-sky-400 text-xs font-semibold text-slate-700 whitespace-nowrap">8. รายงาน &amp; บันทึกข้อความ</a>
+        <a href="#mch-9" class="manual-jump px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-sky-400 text-xs font-semibold text-slate-700 whitespace-nowrap">9. ชนิดใหม่ (SPX)</a>
+        <a href="#mch-10" class="manual-jump px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-sky-400 text-xs font-semibold text-slate-700 whitespace-nowrap">10. Apps Script &amp; FAQ</a>
+      </div>
+
+      <!-- Manual Body -->
+      <div id="modal-manual-body" class="p-4 sm:p-6 overflow-y-auto space-y-5 text-sm text-slate-700 leading-relaxed">
+        <!-- Cover -->
+        <div class="manual-cover rounded-2xl p-6 text-white space-y-3" style="background: linear-gradient(155deg, #061224 0%, #0B1F3A 60%, #0E3A5E 100%);">
+          <span class="inline-block px-3 py-1 rounded-full bg-sky-400/20 border border-sky-300/30 text-sky-200 text-xs font-semibold">📘 คู่มือปฏิบัติงานฉบับล่าสุด • รองรับการพิมพ์ A4</span>
+          <h3 class="text-xl sm:text-2xl font-bold leading-snug">คู่มือการใช้งานระบบบันทึกสัตว์น้ำ Waghor AquaLog (WG_Fishmanager)</h3>
+          <p class="text-xs sm:text-sm text-sky-100/90">ระบบบริหารจัดการสต็อกสัตว์น้ำ 45 ตู้ บันทึกซาก คำนวณต้นทุนแบบ FIFO โอนย้ายข้ามตู้ 2 ขั้นตอน และออกรายงานบันทึกข้อความราชการอัตโนมัติ</p>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-white/15 text-xs">
+            <div class="bg-white/10 rounded-xl p-2.5"><span class="block text-slate-300 text-[11px]">หน่วยงาน</span><strong>กลุ่มพิพิธภัณฑ์สัตว์น้ำ ณ หว้ากอ</strong></div>
+            <div class="bg-white/10 rounded-xl p-2.5"><span class="block text-slate-300 text-[11px]">ขอบเขตระบบ</span><strong>45 ตู้ (น้ำจืด 13 / น้ำเค็ม 32)</strong></div>
+            <div class="bg-white/10 rounded-xl p-2.5"><span class="block text-slate-300 text-[11px]">ฐานข้อมูล</span><strong>Google Sheets + Apps Script</strong></div>
+            <div class="bg-white/10 rounded-xl p-2.5"><span class="block text-slate-300 text-[11px]">ผู้พัฒนา</span><strong>นราธิป ลีธีระ</strong></div>
+          </div>
+        </div>
+
+        <!-- Chapter 1 -->
+        <section id="mch-1" class="manual-chapter rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-3">
+          <h4 class="text-base font-bold text-navy-900 border-b border-slate-100 pb-2">1. ภาพรวมระบบและโครงสร้างเมนู 6 แท็บ</h4>
+          <p class="text-xs sm:text-sm">ระบบแบ่งหน้าจอหลักเป็น <strong>6 แท็บ</strong> (รองรับทั้งบนคอมพิวเตอร์และแถบเมนูล่าง 6 ปุ่มบนมือถือ):</p>
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-xs border-collapse">
+              <thead>
+                <tr class="bg-navy-900 text-white"><th class="py-2 px-3 text-left">แท็บ</th><th class="py-2 px-3 text-left">หน้าที่หลัก</th></tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr><td class="py-2 px-3 font-bold">1. บันทึกด่วน</td><td class="py-2 px-3">บันทึกซาก (ตาย), รับเข้า/ออก/งานสุขภาพ และส่งคำขอย้ายข้ามตู้</td></tr>
+                <tr class="bg-slate-50"><td class="py-2 px-3 font-bold">2. รอรับเข้า</td><td class="py-2 px-3">ยืนยันรับสัตว์น้ำที่ถูกส่งย้ายมาจากตู้อื่น (ระบบโอนย้าย 2 ขั้นตอน)</td></tr>
+                <tr><td class="py-2 px-3 font-bold">3. สต็อกตู้ &amp; ล็อต</td><td class="py-2 px-3">ดูคงเหลือใน 45 ตู้, ล็อต FIFO, แก้ไขล็อต และเปิด <strong>บัตรประวัติสัตว์น้ำ (Stock Card)</strong></td></tr>
+                <tr class="bg-slate-50"><td class="py-2 px-3 font-bold">4. ประวัติรายวัน</td><td class="py-2 px-3">ค้นหา แก้ไขรายละเอียดซาก หรือกด <strong>ยกเลิกคืนสต็อก</strong></td></tr>
+                <tr><td class="py-2 px-3 font-bold">5. สรุปการตาย</td><td class="py-2 px-3"><strong>ตารางรายการซาก 12 คอลัมน์</strong> (กรรมการตรวจซาก), กราฟรายเดือน, ส่งออก Excel/CSV/A4</td></tr>
+                <tr class="bg-slate-50"><td class="py-2 px-3 font-bold">6. รายงาน</td><td class="py-2 px-3">ตารางสรุปยอดเดือน, <strong>ปิดยอด &amp; ล็อกเดือน</strong>, และสร้าง <strong>บันทึกข้อความ</strong> ส่งออก Word (.doc)</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Chapter 2 -->
+        <section id="mch-2" class="manual-chapter rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-2.5">
+          <h4 class="text-base font-bold text-navy-900 border-b border-slate-100 pb-2">2. การตั้งค่าเริ่มต้น (ไอคอนตั้งค่ามุมขวาบน)</h4>
+          <ol class="list-decimal pl-5 space-y-1.5 text-xs sm:text-sm">
+            <li><strong>เลือกผู้ใช้งานปัจจุบัน (ผู้บันทึก):</strong> เลือกชื่อ-สกุลของคุณ เพื่อบันทึกชื่อลงในทุก Transaction และใช้ตัวกรอง <strong>ตู้ของฉัน</strong></li>
+            <li><strong>เพิ่มพนักงานเจ้าของตู้:</strong> กรอกชื่อ-สกุล และตำแหน่ง แล้วกด <em>เพิ่มรายชื่อ</em></li>
+            <li><strong>ผูกเจ้าของตู้:</strong> เลือกรหัสตู้และชื่อพนักงาน แล้วกด <em>บันทึกเจ้าของตู้</em></li>
+            <li><strong>เชื่อมต่อ Google Sheets:</strong> ตรวจสอบ Apps Script URL กด <em>บันทึก URL &amp; ซิงก์ทันที</em> หรือ <em>ซิงก์ชื่อ-ราคาจากชีตกลาง</em></li>
+          </ol>
+        </section>
+
+        <!-- Chapter 3 -->
+        <section id="mch-3" class="manual-chapter rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-3">
+          <h4 class="text-base font-bold text-navy-900 border-b border-slate-100 pb-2">3. แท็บ "บันทึกด่วน" (3 โหมดการทำงาน)</h4>
+          <div class="inline-flex flex-wrap gap-1.5 bg-slate-100 p-1 rounded-xl no-print">
+            <button type="button" class="manual-itab-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-navy-900 text-white" data-mitab="mitab-death">1. บันทึกซาก</button>
+            <button type="button" class="manual-itab-btn px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600" data-mitab="mitab-move">2. รับเข้า / ออก</button>
+            <button type="button" class="manual-itab-btn px-3 py-1.5 rounded-lg text-xs font-bold text-slate-600" data-mitab="mitab-trans">3. ย้ายข้ามตู้</button>
+          </div>
+          <div id="mitab-death" class="manual-itab-panel space-y-1.5 text-xs sm:text-sm">
+            <p class="manual-print-label hidden font-bold text-navy-900">โหมด 1: บันทึกซาก (ตาย)</p>
+            <ul class="list-disc pl-5 space-y-1">
+              <li>เลือกวันที่ (หากเดือนนั้นถูกล็อกแล้ว ระบบจะแจ้งเตือนสีแดงและไม่ให้บันทึก) และเลือกตู้จัดแสดง</li>
+              <li>เลือกชนิดสัตว์น้ำ (เมื่อบันทึกแล้วเปลี่ยนตู้ใหม่ รายชื่อปลาและช่องค้นหาจะรีเฟรชให้อัตโนมัติทันที)</li>
+              <li>เลือกการจัดการซาก (<code>เก็บซาก</code> / <code>ไม่เก็บซาก</code>) และกดเลือก <strong>อาการที่พบ</strong> (บังคับอย่างน้อย 1 อาการ)</li>
+              <li><strong>กฎน้ำหนักปลาใหญ่ (Species_Rules):</strong> ปลาเล็กไม่บังคับน้ำหนัก แต่สัตว์น้ำขนาดใหญ่/คิดราคาต่อ กก. ระบบจะบังคับชั่งน้ำหนักเป็นกรัม</li>
+              <li>ตรวจสอบ <em>ตัวอย่างการตัดล็อตอัตโนมัติ (FIFO)</em> หรือเลือกล็อตเอง แล้วกด <strong>บันทึกซากสัตว์น้ำ</strong></li>
+            </ul>
+          </div>
+          <div id="mitab-move" class="manual-itab-panel hidden space-y-1.5 text-xs sm:text-sm">
+            <p class="manual-print-label hidden font-bold text-navy-900">โหมด 2: รับเข้า / ออก / งานสุขภาพ</p>
+            <ul class="list-disc pl-5 space-y-1">
+              <li><strong>รับเข้าตู้จัดแสดง (IN):</strong> เลือกหมวดหมู่ (จัดซื้อ, บริจาค, จัดหา, เพาะเลี้ยง, เคลมประกัน), ระบุราคาทุน Snapshot และติ๊ก <em>สัตว์น้ำมีประกันจากร้าน (แบบ A)</em> ได้ (ตายในประกันไม่คิดมูลค่าซาก)</li>
+              <li><strong>ย้ายออกนอกตู้จัดแสดง (OUT):</strong> นำสัตว์น้ำออกจากระบบโดยตัดยอดตามล็อต FIFO</li>
+              <li><strong>งานสุขภาพ — ส่งรักษา / รับคืนเข้าตู้:</strong> ย้ายปลาป่วยไปพักรักษาและรับกลับเข้าตู้เดิม</li>
+              <li><strong>ปุ่ม + เพิ่มชนิดใหม่:</strong> เพิ่มสัตว์น้ำนอกบัญชีกลาง (ออกรหัส <code>SPX</code>) ได้ทันทีจากหน้าจอรับเข้า</li>
+            </ul>
+          </div>
+          <div id="mitab-trans" class="manual-itab-panel hidden space-y-1.5 text-xs sm:text-sm">
+            <p class="manual-print-label hidden font-bold text-navy-900">โหมด 3: ย้ายข้ามตู้ (2 ขั้นตอน)</p>
+            <p>เลือกตู้ต้นทาง ชนิด จำนวน และตู้ปลายทาง แล้วกดส่งคำขอ ยอดและล็อตต้นทุนจะยังไม่ย้ายจนกว่าเจ้าของตู้ปลายทางจะกดยืนยันในแท็บ <strong>รอรับเข้า</strong></p>
+          </div>
+        </section>
+
+        <!-- Chapter 4 & 5 -->
+        <section id="mch-4" class="manual-chapter rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-2">
+          <h4 class="text-base font-bold text-navy-900 border-b border-slate-100 pb-2">4. แท็บ "รอรับเข้า" (โอนย้าย 2 ขั้นตอน)</h4>
+          <p class="text-xs sm:text-sm">เมื่อมีรายการรอยืนยันจะมีป้ายตัวเลขสีเหลืองแจ้งเตือน ให้เจ้าของตู้ปลายทางตรวจสอบชนิด จำนวน แล้วกด <strong>ยืนยันรับเข้า</strong> เพื่อให้ยอดและต้นทุนล็อตย้ายเข้าตู้อย่างสมบูรณ์</p>
+        </section>
+
+        <section id="mch-5" class="manual-chapter rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-2">
+          <h4 class="text-base font-bold text-navy-900 border-b border-slate-100 pb-2">5. แท็บ "สต็อกตู้ &amp; ล็อต" และบัตรประวัติสัตว์น้ำ (Stock Card)</h4>
+          <ul class="list-disc pl-5 space-y-1 text-xs sm:text-sm">
+            <li>ค้นหาและกรองสต็อก 45 ตู้ (ทั้งหมด 45 / น้ำจืด 13 / น้ำเค็ม 32) ดูยอดรายเดือนหรือสะสมทุกเดือน และแก้ไขข้อมูลล็อต FIFO ได้</li>
+            <li>กดปุ่ม <strong>บัตรประวัติสัตว์น้ำ</strong> เพื่อดูวันที่รับเข้าครั้งแรก, อายุการเลี้ยง, คงเหลือตอนนี้, ตายสะสม, ไทม์ไลน์รับเข้า-ตาย และตาราง Stock Card ฉบับเต็ม (คัดลอก/ส่งออก CSV ได้)</li>
+          </ul>
+        </section>
+
+        <!-- Chapter 6 & 7 -->
+        <section id="mch-6" class="manual-chapter rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-2">
+          <h4 class="text-base font-bold text-navy-900 border-b border-slate-100 pb-2">6. แท็บ "ประวัติรายวัน" และการแก้ไข / ยกเลิกคืนสต็อก</h4>
+          <p class="text-xs sm:text-sm">แยกดูได้ทั้ง <strong>ประวัติซาก (ตาย)</strong> และ <strong>ประวัติรับเข้า-ย้ายออก</strong></p>
+          <div class="rounded-xl bg-amber-50 border-l-4 border-amber-600 p-3 text-xs text-amber-900">
+            <strong>⚠️ ข้อควรระวัง:</strong> แก้ไขได้เฉพาะการจัดการซาก อาการ ขนาด และหมายเหตุ หากกรอกผิดเรื่อง <strong>จำนวน, ตู้, ชนิดปลา หรือน้ำหนักปลาใหญ่</strong> กรุณากด <strong>"ยกเลิกคืนสต็อก"</strong> แล้วกรอกใหม่เพื่อไม่ให้ยอด FIFO เพี้ยน
+          </div>
+        </section>
+
+        <section id="mch-7" class="manual-chapter rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-2">
+          <h4 class="text-base font-bold text-navy-900 border-b border-slate-100 pb-2">7. แท็บ "สรุปการตาย" ประจำเดือน</h4>
+          <ul class="list-disc pl-5 space-y-1 text-xs sm:text-sm">
+            <li><strong>ตารางรายการซาก (12 คอลัมน์):</strong> แบบฟอร์ม <em>กรรมการตรวจซาก</em> สลับ <strong>เลขไทย (๑๒๓)</strong> / <strong>อารบิก (123)</strong> ได้ พร้อมส่งออก <strong>Excel (.xls)</strong>, <strong>CSV</strong>, คัดลอก และ <strong>พิมพ์ตาราง A4</strong></li>
+            <li><strong>สรุปรวมตามชนิด + กราฟ:</strong> สรุปจำนวน ชนิด ตู้ มูลค่า พร้อมแผนภูมิ 10 อันดับชนิดและตู้ที่ตายมากที่สุด</li>
+          </ul>
+        </section>
+
+        <!-- Chapter 8 & 9 -->
+        <section id="mch-8" class="manual-chapter rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-2">
+          <h4 class="text-base font-bold text-navy-900 border-b border-slate-100 pb-2">8. แท็บ "รายงาน" และบันทึกข้อความราชการ</h4>
+          <p class="text-xs sm:text-sm">ตรวจสอบตารางสรุปยอดประจำเดือน กด <strong>ปิดยอด &amp; ล็อกเดือน</strong> เพื่อป้องกันการแก้ไขย้อนหลัง และกด <strong>คัดลอกบันทึกข้อความ</strong>, <strong>ส่งออก Word (.doc)</strong> หรือ <strong>พิมพ์</strong> ได้ทันที</p>
+        </section>
+
+        <section id="mch-9" class="manual-chapter rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-2">
+          <h4 class="text-base font-bold text-navy-900 border-b border-slate-100 pb-2">9. การเพิ่มชนิดสัตว์น้ำใหม่ (นอกบัญชีกลาง • รหัส SPX)</h4>
+          <p class="text-xs sm:text-sm">เพิ่มได้ในหน้า <strong>ตั้งค่า</strong> (หรือปุ่ม <code>+ เพิ่มชนิดใหม่</code> ในโหมดรับเข้า) ระบบตรวจชื่อซ้ำแบบเรียลไทม์ ออกรหัส <code>SPX001...</code> ลงแท็บ <code>Master_Species</code> (และ <code>Species_Rules</code> หากบังคับชั่งน้ำหนัก) โดยจะรักษารายการ <code>SPX*</code> ไว้ไม่ให้ถูกลบเมื่อซิงก์ชีตกลาง</p>
+        </section>
+
+        <!-- Chapter 10 -->
+        <section id="mch-10" class="manual-chapter rounded-2xl border border-slate-200 p-4 sm:p-5 space-y-3">
+          <h4 class="text-base font-bold text-navy-900 border-b border-slate-100 pb-2">10. อัปเดต Google Apps Script &amp; คำถามที่พบบ่อย (FAQ)</h4>
+          <p class="text-xs sm:text-sm"><strong>สำหรับผู้ดูแล:</strong> เปิด Sheets <code>ระบบบันทึกสัตว์น้ำ_หว้ากอ_Database</code> → <em>Extensions → Apps Script</em> → อัปเดต <code>Code.gs</code> และ <code>index.html</code> → กด <strong>Deploy → Manage deployments → Edit → Version: New version → Deploy</strong></p>
+          <div class="space-y-2">
+            <div class="manual-break-avoid rounded-xl border border-slate-200 overflow-hidden">
+              <button type="button" class="manual-faq-q w-full text-left px-3.5 py-2.5 bg-slate-50 font-semibold text-xs sm:text-sm text-navy-900 flex items-center justify-between">
+                <span>1. บันทึกซากตู้เดิมแล้วกดเลือกตู้ใหม่ ทำไมรายชื่อปลาถึงเปลี่ยนเองทันที?</span>
+                <span class="text-slate-400 text-xs no-print">▼</span>
+              </button>
+              <div class="manual-faq-a hidden px-3.5 py-2.5 border-t border-slate-200 text-xs text-slate-600">
+                เวอร์ชันล่าสุดแก้ไขให้ล้างช่องค้นหาและรีเฟรชรายการปลาของตู้ใหม่ทันทีโดยไม่ต้องกด F5 พร้อมป้ายยืนยันจำนวนชนิดที่พบในตู้ครับ
+              </div>
+            </div>
+            <div class="manual-break-avoid rounded-xl border border-slate-200 overflow-hidden">
+              <button type="button" class="manual-faq-q w-full text-left px-3.5 py-2.5 bg-slate-50 font-semibold text-xs sm:text-sm text-navy-900 flex items-center justify-between">
+                <span>2. กรอกจำนวนหรือน้ำหนักปลาตายผิด ต้องแก้ที่ไหน?</span>
+                <span class="text-slate-400 text-xs no-print">▼</span>
+              </button>
+              <div class="manual-faq-a hidden px-3.5 py-2.5 border-t border-slate-200 text-xs text-slate-600">
+                ไปที่แท็บ <strong>ประวัติ</strong> → กด <strong>ยกเลิกคืนสต็อก</strong> ที่รายการนั้น แล้วกลับไปบันทึกใหม่ในแท็บ <strong>บันทึกด่วน</strong> เพื่อไม่ให้ยอดล็อต FIFO เพี้ยนครับ
+              </div>
+            </div>
+            <div class="manual-break-avoid rounded-xl border border-slate-200 overflow-hidden">
+              <button type="button" class="manual-faq-q w-full text-left px-3.5 py-2.5 bg-slate-50 font-semibold text-xs sm:text-sm text-navy-900 flex items-center justify-between">
+                <span>3. วิธีพิมพ์คู่มือเป็น PDF ให้สวยงามทำอย่างไร?</span>
+                <span class="text-slate-400 text-xs no-print">▼</span>
+              </button>
+              <div class="manual-faq-a hidden px-3.5 py-2.5 border-t border-slate-200 text-xs text-slate-600">
+                กดปุ่ม <strong>พิมพ์ / บันทึก PDF</strong> มุมขวาบนของหน้าต่างคู่มือ เลือก <strong>Save as PDF</strong>, กระดาษ <strong>A4</strong> และเปิด <strong>Background graphics</strong> ครับ
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   </div>
@@ -5002,6 +5253,65 @@ const THAI_SHORT_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','�
           else { showToast('บันทึกการแก้ไขล็อตในเครื่องแล้ว'); }
         });
       });
+
+      // Interactive User Manual Modal
+      const modalManual = document.getElementById('modal-manual');
+      const openManualBtn = document.getElementById('btn-open-manual');
+      const closeManualBtn = document.getElementById('btn-close-manual');
+      const printManualBtn = document.getElementById('btn-manual-print-pdf');
+      const manualSearchInput = document.getElementById('manual-modal-search');
+
+      if (openManualBtn && modalManual) {
+        openManualBtn.addEventListener('click', () => {
+          modalManual.classList.remove('hidden');
+          if (typeof lucide !== 'undefined') lucide.createIcons();
+        });
+      }
+      if (closeManualBtn && modalManual) {
+        closeManualBtn.addEventListener('click', () => modalManual.classList.add('hidden'));
+      }
+      if (modalManual) {
+        modalManual.addEventListener('click', (e) => {
+          if (e.target === modalManual) modalManual.classList.add('hidden');
+        });
+      }
+      if (printManualBtn) {
+        printManualBtn.addEventListener('click', () => {
+          document.body.classList.add('printing-manual');
+          window.print();
+        });
+        window.addEventListener('afterprint', () => {
+          document.body.classList.remove('printing-manual');
+        });
+      }
+      document.querySelectorAll('.manual-itab-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const targetId = btn.getAttribute('data-mitab');
+          document.querySelectorAll('.manual-itab-btn').forEach((b) => {
+            b.classList.remove('bg-navy-900', 'text-white');
+            b.classList.add('text-slate-600');
+          });
+          btn.classList.add('bg-navy-900', 'text-white');
+          btn.classList.remove('text-slate-600');
+          document.querySelectorAll('.manual-itab-panel').forEach((p) => p.classList.add('hidden'));
+          const panel = document.getElementById(targetId);
+          if (panel) panel.classList.remove('hidden');
+        });
+      });
+      document.querySelectorAll('.manual-faq-q').forEach((qBtn) => {
+        qBtn.addEventListener('click', () => {
+          const ans = qBtn.nextElementSibling;
+          if (ans) ans.classList.toggle('hidden');
+        });
+      });
+      if (manualSearchInput) {
+        manualSearchInput.addEventListener('input', () => {
+          const q = manualSearchInput.value.trim().toLowerCase();
+          document.querySelectorAll('.manual-chapter').forEach((ch) => {
+            ch.classList.toggle('hidden', q !== '' && !ch.textContent.toLowerCase().includes(q));
+          });
+        });
+      }
 
       updatePendingQueueBanner();
       const flushBtn = document.getElementById('btn-flush-queue');
